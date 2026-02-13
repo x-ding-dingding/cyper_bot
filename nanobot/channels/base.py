@@ -121,7 +121,7 @@ class BaseChannel(ABC):
         # Intercept reset commands to clear conversation history
         stripped = content.strip().lower()
         if stripped in RESET_COMMANDS:
-            await self._handle_reset(chat_id)
+            await self._handle_reset(chat_id, metadata=metadata)
             return
         
         msg = InboundMessage(
@@ -135,12 +135,13 @@ class BaseChannel(ABC):
         
         await self.bus.publish_inbound(msg)
     
-    async def _handle_reset(self, chat_id: str) -> None:
+    async def _handle_reset(self, chat_id: str, metadata: dict[str, Any] | None = None) -> None:
         """
         Clear conversation history for the given chat and send a confirmation.
         
         Args:
             chat_id: The chat/channel identifier.
+            metadata: Optional channel-specific metadata (needed for group message routing).
         """
         session_key = f"{self.name}:{chat_id}"
         
@@ -150,6 +151,7 @@ class BaseChannel(ABC):
                 channel=self.name,
                 chat_id=str(chat_id),
                 content="⚠️ Session management is not available.",
+                metadata=metadata or {},
             ))
             return
         
@@ -163,6 +165,7 @@ class BaseChannel(ABC):
             channel=self.name,
             chat_id=str(chat_id),
             content="🔄 Conversation history cleared. Let's start fresh!",
+            metadata=metadata or {},
         ))
     
     @property
