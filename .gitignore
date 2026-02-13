@@ -19,3 +19,7 @@ poetry.lock
 .pytest_cache/
 tests/
 botpy.log
+
+# 
+*.jsonl
+workspace/memory/*.md

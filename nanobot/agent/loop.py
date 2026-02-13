@@ -159,6 +159,11 @@ class AgentLoop:
         preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
         logger.info(f"Processing message from {msg.channel}:{msg.sender_id}: {preview}")
         
+        # Intercept reset commands (/reset, /clear, /new)
+        stripped_content = msg.content.strip().lower()
+        if stripped_content in {"/reset", "/clear", "/new"}:
+            return await self._handle_reset_command(msg)
+        
         # Get or create session
         session = self.sessions.get_or_create(msg.session_key)
         
@@ -247,6 +252,22 @@ class AgentLoop:
             chat_id=msg.chat_id,
             content=final_content,
             metadata=msg.metadata or {},  # Pass through for channel-specific needs (e.g. Slack thread_ts)
+        )
+    
+    async def _handle_reset_command(self, msg: InboundMessage) -> OutboundMessage:
+        """Handle /reset, /clear, /new commands by clearing session history."""
+        session_key = msg.session_key
+        session = self.sessions.get_or_create(session_key)
+        msg_count = len(session.messages)
+        session.clear()
+        self.sessions.save(session)
+        
+        logger.info(f"Session reset for {session_key} (cleared {msg_count} messages)")
+        return OutboundMessage(
+            channel=msg.channel,
+            chat_id=msg.chat_id,
+            content="🔄 Conversation history cleared. Let's start fresh!",
+            metadata=msg.metadata or {},
         )
     
     async def _process_system_message(self, msg: InboundMessage) -> OutboundMessage | None:

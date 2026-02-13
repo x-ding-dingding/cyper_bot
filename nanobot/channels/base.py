@@ -1,13 +1,20 @@
 """Base channel interface for chat platforms."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from loguru import logger
 
 from nanobot.bus.events import InboundMessage, OutboundMessage
 from nanobot.bus.queue import MessageBus
 
+if TYPE_CHECKING:
+    from nanobot.session.manager import SessionManager
+
+# Commands that trigger a conversation reset
+RESET_COMMANDS = {"/reset", "/clear", "/new"}
 
 class BaseChannel(ABC):
     """
@@ -29,8 +36,8 @@ class BaseChannel(ABC):
         """
         self.config = config
         self.bus = bus
-        self._running = False
-    
+        self.session_manager: SessionManager | None = None
+        self._running = False    
     @abstractmethod
     async def start(self) -> None:
         """
@@ -94,7 +101,8 @@ class BaseChannel(ABC):
         """
         Handle an incoming message from the chat platform.
         
-        This method checks permissions and forwards to the bus.
+        This method checks permissions, intercepts reset commands,
+        and forwards normal messages to the bus.
         
         Args:
             sender_id: The sender's identifier.
@@ -110,6 +118,12 @@ class BaseChannel(ABC):
             )
             return
         
+        # Intercept reset commands to clear conversation history
+        stripped = content.strip().lower()
+        if stripped in RESET_COMMANDS:
+            await self._handle_reset(chat_id)
+            return
+        
         msg = InboundMessage(
             channel=self.name,
             sender_id=str(sender_id),
@@ -120,6 +134,36 @@ class BaseChannel(ABC):
         )
         
         await self.bus.publish_inbound(msg)
+    
+    async def _handle_reset(self, chat_id: str) -> None:
+        """
+        Clear conversation history for the given chat and send a confirmation.
+        
+        Args:
+            chat_id: The chat/channel identifier.
+        """
+        session_key = f"{self.name}:{chat_id}"
+        
+        if self.session_manager is None:
+            logger.warning(f"/reset on {self.name} but session_manager is not available")
+            await self.send(OutboundMessage(
+                channel=self.name,
+                chat_id=str(chat_id),
+                content="⚠️ Session management is not available.",
+            ))
+            return
+        
+        session = self.session_manager.get_or_create(session_key)
+        msg_count = len(session.messages)
+        session.clear()
+        self.session_manager.save(session)
+        
+        logger.info(f"Session reset for {session_key} (cleared {msg_count} messages)")
+        await self.send(OutboundMessage(
+            channel=self.name,
+            chat_id=str(chat_id),
+            content="🔄 Conversation history cleared. Let's start fresh!",
+        ))
     
     @property
     def is_running(self) -> bool:

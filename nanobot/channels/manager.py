@@ -141,6 +141,11 @@ class ChannelManager:
                 logger.info("QQ channel enabled")
             except ImportError as e:
                 logger.warning(f"QQ channel not available: {e}")
+        
+        # Inject session_manager into all channels for /reset support
+        if self.session_manager:
+            for channel in self.channels.values():
+                channel.session_manager = self.session_manager
     
     async def _start_channel(self, name: str, channel: BaseChannel) -> None:
         """Start a channel and log any exceptions."""
