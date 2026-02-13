@@ -222,8 +222,9 @@ class DingTalkChannel(BaseChannel):
         headers = {"x-acs-dingtalk-access-token": token}
 
         if msg_type == "image":
+            photo_url = metadata.get("photo_url", "")
             msg_key = "sampleImageMsg"
-            msg_param = json.dumps({"photoURL": metadata.get("photo_url", "")})
+            msg_param = json.dumps({"photoURL": photo_url})
         else:
             msg_key = "sampleMarkdown"
             msg_param = json.dumps({"text": msg.content, "title": "Nanobot Reply"})
@@ -264,8 +265,9 @@ class DingTalkChannel(BaseChannel):
         headers = {"x-acs-dingtalk-access-token": token}
 
         if msg_type == "image":
+            photo_url = metadata.get("photo_url", "")
             msg_key = "sampleImageMsg"
-            msg_param = json.dumps({"photoURL": metadata.get("photo_url", "")})
+            msg_param = json.dumps({"photoURL": photo_url})
         else:
             msg_key = "sampleMarkdown"
             msg_param = json.dumps({"text": msg.content, "title": "Nanobot Reply"})

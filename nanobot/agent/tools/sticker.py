@@ -11,7 +11,12 @@ from nanobot.bus.events import OutboundMessage
 
 
 class StickerTool(Tool):
-    """Tool to send image stickers from a local sticker library."""
+    """Tool to send image stickers from a local sticker library.
+
+    Stickers are sent immediately when the tool is called, following the
+    normal tool-calling flow: LLM calls the tool first, then composes its
+    text reply based on the tool result.
+    """
 
     def __init__(
         self,
@@ -65,7 +70,8 @@ class StickerTool(Tool):
         return (
             "Send an image sticker to express emotion. "
             f"Available stickers: [{available}]. "
-            "Use this to complement your text reply — not as a replacement. "
+            "The sticker will be sent immediately. Then give your text reply after calling this tool. "
+            "The sticker is a supplement to your words, never a replacement. "
             "Do not overuse; pick one only when the emotion is strong or playful."
         )
 
@@ -119,5 +125,5 @@ class StickerTool(Tool):
             logger.info(f"Sticker '{name}' sent to {channel}:{chat_id}")
             return f"Sticker '{name}' sent successfully."
         except Exception as error:
-            logger.error(f"Failed to send sticker: {error}")
-            return f"Error sending sticker: {error}"
+            logger.error(f"Failed to send sticker '{name}': {error}")
+            return f"Error: Failed to send sticker '{name}': {error}"
