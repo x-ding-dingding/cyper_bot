@@ -65,12 +65,25 @@ class NanobotDingTalkHandler(CallbackHandler):
             sender_id = chatbot_msg.sender_staff_id or chatbot_msg.sender_id
             sender_name = chatbot_msg.sender_nick or "Unknown"
 
-            logger.info(f"Received DingTalk message from {sender_name} ({sender_id}): {content}")
+            # Determine if this is a group message (conversationType "2" = group)
+            is_group = str(chatbot_msg.conversation_type) == "2"
+            conversation_id = chatbot_msg.conversation_id or ""
+            session_webhook = chatbot_msg.session_webhook or ""
+
+            logger.info(
+                f"Received DingTalk message from {sender_name} ({sender_id}): {content}"
+                f" [{'group' if is_group else 'private'}, conv={conversation_id}]"
+            )
 
             # Forward to Nanobot via _on_message (non-blocking).
             # Store reference to prevent GC before task completes.
             task = asyncio.create_task(
-                self.channel._on_message(content, sender_id, sender_name)
+                self.channel._on_message(
+                    content, sender_id, sender_name,
+                    is_group=is_group,
+                    conversation_id=conversation_id,
+                    session_webhook=session_webhook,
+                )
             )
             self.channel._background_tasks.add(task)
             task.add_done_callback(self.channel._background_tasks.discard)
@@ -183,20 +196,30 @@ class DingTalkChannel(BaseChannel):
             return None
 
     async def send(self, msg: OutboundMessage) -> None:
-        """Send a message through DingTalk."""
+        """Send a message through DingTalk (private or group)."""
+        if not self._http:
+            logger.warning("DingTalk HTTP client not initialized, cannot send")
+            return
+
+        metadata = msg.metadata or {}
+        is_group = metadata.get("is_group", False)
+
+        if is_group:
+            await self._send_group_message(msg)
+        else:
+            await self._send_private_message(msg)
+
+    async def _send_private_message(self, msg: OutboundMessage) -> None:
+        """Send a private (1:1) message via oToMessages/batchSend API."""
         token = await self._get_access_token()
         if not token:
             return
 
-        # oToMessages/batchSend: sends to individual users (private chat)
-        # https://open.dingtalk.com/document/orgapp/robot-batch-send-messages
         url = "https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend"
-
         headers = {"x-acs-dingtalk-access-token": token}
-
         data = {
             "robotCode": self.config.client_id,
-            "userIds": [msg.chat_id],  # chat_id is the user's staffId
+            "userIds": [msg.chat_id],
             "msgKey": "sampleMarkdown",
             "msgParam": json.dumps({
                 "text": msg.content,
@@ -204,34 +227,86 @@ class DingTalkChannel(BaseChannel):
             }),
         }
 
-        if not self._http:
-            logger.warning("DingTalk HTTP client not initialized, cannot send")
+        try:
+            resp = await self._http.post(url, json=data, headers=headers)
+            if resp.status_code != 200:
+                logger.error(f"DingTalk private send failed: {resp.text}")
+            else:
+                logger.debug(f"DingTalk private message sent to {msg.chat_id}")
+        except Exception as e:
+            logger.error(f"Error sending DingTalk private message: {e}")
+
+    async def _send_group_message(self, msg: OutboundMessage) -> None:
+        """Send a group message via groupMessages/send API."""
+        token = await self._get_access_token()
+        if not token:
             return
+
+        metadata = msg.metadata or {}
+        conversation_id = metadata.get("conversation_id", "")
+
+        if not conversation_id:
+            logger.warning("DingTalk group send: missing conversation_id, falling back to private")
+            await self._send_private_message(msg)
+            return
+
+        url = "https://api.dingtalk.com/v1.0/robot/groupMessages/send"
+        headers = {"x-acs-dingtalk-access-token": token}
+        data = {
+            "robotCode": self.config.client_id,
+            "openConversationId": conversation_id,
+            "msgKey": "sampleMarkdown",
+            "msgParam": json.dumps({
+                "text": msg.content,
+                "title": "Nanobot Reply",
+            }),
+        }
 
         try:
             resp = await self._http.post(url, json=data, headers=headers)
             if resp.status_code != 200:
-                logger.error(f"DingTalk send failed: {resp.text}")
+                logger.error(f"DingTalk group send failed: {resp.text}")
             else:
-                logger.debug(f"DingTalk message sent to {msg.chat_id}")
+                logger.debug(f"DingTalk group message sent to conversation {conversation_id}")
         except Exception as e:
-            logger.error(f"Error sending DingTalk message: {e}")
+            logger.error(f"Error sending DingTalk group message: {e}")
 
-    async def _on_message(self, content: str, sender_id: str, sender_name: str) -> None:
+    async def _on_message(
+        self,
+        content: str,
+        sender_id: str,
+        sender_name: str,
+        is_group: bool = False,
+        conversation_id: str = "",
+        session_webhook: str = "",
+    ) -> None:
         """Handle incoming message (called by NanobotDingTalkHandler).
 
         Delegates to BaseChannel._handle_message() which enforces allow_from
         permission checks before publishing to the bus.
+
+        For group messages, chat_id is set to the conversation_id so that
+        session history is tracked per-group rather than per-user.
         """
         try:
-            logger.info(f"DingTalk inbound: {content} from {sender_name}")
+            # Use conversation_id as chat_id for group messages (per-group session),
+            # sender_id for private messages (per-user session).
+            chat_id = conversation_id if is_group else sender_id
+
+            logger.info(
+                f"DingTalk inbound: {content} from {sender_name}"
+                f" [{'group' if is_group else 'private'}]"
+            )
             await self._handle_message(
                 sender_id=sender_id,
-                chat_id=sender_id,  # For private chat, chat_id == sender_id
+                chat_id=chat_id,
                 content=str(content),
                 metadata={
                     "sender_name": sender_name,
                     "platform": "dingtalk",
+                    "is_group": is_group,
+                    "conversation_id": conversation_id,
+                    "session_webhook": session_webhook,
                 },
             )
         except Exception as e:
