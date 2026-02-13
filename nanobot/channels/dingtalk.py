@@ -215,16 +215,24 @@ class DingTalkChannel(BaseChannel):
         if not token:
             return
 
+        metadata = msg.metadata or {}
+        msg_type = metadata.get("msg_type", "text")
+
         url = "https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend"
         headers = {"x-acs-dingtalk-access-token": token}
+
+        if msg_type == "image":
+            msg_key = "sampleImageMsg"
+            msg_param = json.dumps({"photoURL": metadata.get("photo_url", "")})
+        else:
+            msg_key = "sampleMarkdown"
+            msg_param = json.dumps({"text": msg.content, "title": "Nanobot Reply"})
+
         data = {
             "robotCode": self.config.client_id,
             "userIds": [msg.chat_id],
-            "msgKey": "sampleMarkdown",
-            "msgParam": json.dumps({
-                "text": msg.content,
-                "title": "Nanobot Reply",
-            }),
+            "msgKey": msg_key,
+            "msgParam": msg_param,
         }
 
         try:
@@ -232,7 +240,7 @@ class DingTalkChannel(BaseChannel):
             if resp.status_code != 200:
                 logger.error(f"DingTalk private send failed: {resp.text}")
             else:
-                logger.debug(f"DingTalk private message sent to {msg.chat_id}")
+                logger.debug(f"DingTalk private message sent to {msg.chat_id} (type={msg_type})")
         except Exception as e:
             logger.error(f"Error sending DingTalk private message: {e}")
 
@@ -250,16 +258,23 @@ class DingTalkChannel(BaseChannel):
             await self._send_private_message(msg)
             return
 
+        msg_type = metadata.get("msg_type", "text")
+
         url = "https://api.dingtalk.com/v1.0/robot/groupMessages/send"
         headers = {"x-acs-dingtalk-access-token": token}
+
+        if msg_type == "image":
+            msg_key = "sampleImageMsg"
+            msg_param = json.dumps({"photoURL": metadata.get("photo_url", "")})
+        else:
+            msg_key = "sampleMarkdown"
+            msg_param = json.dumps({"text": msg.content, "title": "Nanobot Reply"})
+
         data = {
             "robotCode": self.config.client_id,
             "openConversationId": conversation_id,
-            "msgKey": "sampleMarkdown",
-            "msgParam": json.dumps({
-                "text": msg.content,
-                "title": "Nanobot Reply",
-            }),
+            "msgKey": msg_key,
+            "msgParam": msg_param,
         }
 
         try:
@@ -267,7 +282,7 @@ class DingTalkChannel(BaseChannel):
             if resp.status_code != 200:
                 logger.error(f"DingTalk group send failed: {resp.text}")
             else:
-                logger.debug(f"DingTalk group message sent to conversation {conversation_id}")
+                logger.debug(f"DingTalk group message sent to conversation {conversation_id} (type={msg_type})")
         except Exception as e:
             logger.error(f"Error sending DingTalk group message: {e}")
 

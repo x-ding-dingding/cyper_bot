@@ -18,6 +18,7 @@ from nanobot.agent.tools.web import WebSearchTool, WebFetchTool
 from nanobot.agent.tools.message import MessageTool
 from nanobot.agent.tools.spawn import SpawnTool
 from nanobot.agent.tools.cron import CronTool
+from nanobot.agent.tools.sticker import StickerTool
 from nanobot.agent.subagent import SubagentManager
 from nanobot.session.manager import SessionManager
 
@@ -106,6 +107,14 @@ class AgentLoop:
         # Cron tool (for scheduling)
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
+        
+        # Sticker tool (for sending image stickers)
+        sticker_tool = StickerTool(
+            workspace=self.workspace,
+            send_callback=self.bus.publish_outbound,
+        )
+        if sticker_tool._stickers:
+            self.tools.register(sticker_tool)
     
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
@@ -179,6 +188,10 @@ class AgentLoop:
         cron_tool = self.tools.get("cron")
         if isinstance(cron_tool, CronTool):
             cron_tool.set_context(msg.channel, msg.chat_id)
+        
+        sticker_tool = self.tools.get("sticker")
+        if isinstance(sticker_tool, StickerTool):
+            sticker_tool.set_context(msg.channel, msg.chat_id, metadata=msg.metadata)
         
         # Build initial messages (use get_history for LLM-formatted messages)
         messages = self.context.build_messages(

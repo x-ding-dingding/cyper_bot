@@ -23,3 +23,5 @@ botpy.log
 # 
 *.jsonl
 workspace/memory/*.md
+
+workspace/stickers/*
