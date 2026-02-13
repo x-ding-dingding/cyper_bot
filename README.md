@@ -20,13 +20,13 @@
 
 ## 📢 News
 
-- **2026-02-10** 🎉 Released v0.1.3.post6 with improvements! Check the updates [notes](https://github.com/HKUDS/nanobot/releases/tag/v0.1.3.post6) and our [roadmap](https://github.com/HKUDS/nanobot/discussions/431).
+- **2026-02-10** 🎉 Released v0.1.3.post6 with improvements! Check the updates [notes](https://github.com/x-ding-dingding/cyper_bot/releases/tag/v0.1.3.post6) and our [roadmap](https://github.com/x-ding-dingding/cyper_bot/discussions/431).
 - **2026-02-09** 💬 Added Slack, Email, and QQ support — nanobot now supports multiple chat platforms!
 - **2026-02-08** 🔧 Refactored Providers—adding a new LLM provider now takes just 2 simple steps! Check [here](#providers).
-- **2026-02-07** 🚀 Released v0.1.3.post5 with Qwen support & several key improvements! Check [here](https://github.com/HKUDS/nanobot/releases/tag/v0.1.3.post5) for details.
+- **2026-02-07** 🚀 Released v0.1.3.post5 with Qwen support & several key improvements! Check [here](https://github.com/x-ding-dingding/cyper_bot/releases/tag/v0.1.3.post5) for details.
 - **2026-02-06** ✨ Added Moonshot/Kimi provider, Discord integration, and enhanced security hardening!
 - **2026-02-05** ✨ Added Feishu channel, DeepSeek provider, and enhanced scheduled tasks support!
-- **2026-02-04** 🚀 Released v0.1.3.post4 with multi-provider & Docker support! Check [here](https://github.com/HKUDS/nanobot/releases/tag/v0.1.3.post4) for details.
+- **2026-02-04** 🚀 Released v0.1.3.post4 with multi-provider & Docker support! Check [here](https://github.com/x-ding-dingding/cyper_bot/releases/tag/v0.1.3.post4) for details.
 - **2026-02-03** ⚡ Integrated vLLM for local LLM support and improved natural language task scheduling!
 - **2026-02-02** 🎉 nanobot officially launched! Welcome to try 🐈 nanobot!
 
@@ -74,7 +74,7 @@
 **Install from source** (latest features, recommended for development)
 
 ```bash
-git clone https://github.com/HKUDS/nanobot.git
+git clone https://github.com/x-ding-dingding/cyper_bot.git
 cd nanobot
 pip install -e .
 ```
@@ -738,7 +738,7 @@ nanobot/
 
 PRs welcome! The codebase is intentionally small and readable. 🤗
 
-**Roadmap** — Pick an item and [open a PR](https://github.com/HKUDS/nanobot/pulls)!
+**Roadmap** — Pick an item and [open a PR](https://github.com/x-ding-dingding/cyper_bot/pulls)!
 
 - [x] **Voice Transcription** — Support for Groq Whisper (Issue #13)
 - [ ] **Multi-modal** — See and hear (images, voice, video)
@@ -749,26 +749,26 @@ PRs welcome! The codebase is intentionally small and readable. 🤗
 
 ### Contributors
 
-<a href="https://github.com/HKUDS/nanobot/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=HKUDS/nanobot&max=100&columns=12&updated=20260210" alt="Contributors" />
+<a href="https://github.com/x-ding-dingding/cyper_bot/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=x-ding-dingding/cyper_bot&max=100&columns=12&updated=20260210" alt="Contributors" />
 </a>
 
 
 ## ⭐ Star History
 
 <div align="center">
-  <a href="https://star-history.com/#HKUDS/nanobot&Date">
+  <a href="https://star-history.com/#x-ding-dingding/cyper_bot&Date">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/nanobot&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/nanobot&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/nanobot&type=Date" style="border-radius: 15px; box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);" />
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=x-ding-dingding/cyper_bot&type=Date&theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=x-ding-dingding/cyper_bot&type=Date" />
+      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=x-ding-dingding/cyper_bot&type=Date" style="border-radius: 15px; box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);" />
     </picture>
   </a>
 </div>
 
 <p align="center">
   <em> Thanks for visiting ✨ nanobot!</em><br><br>
-  <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.nanobot&style=for-the-badge&color=00d4ff" alt="Views">
+  <img src="https://visitor-badge.laobi.icu/badge?page_id=x-ding-dingding.cyper_bot&style=for-the-badge&color=00d4ff" alt="Views">
 </p>
 
 

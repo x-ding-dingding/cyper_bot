@@ -218,7 +218,7 @@ def onboard():
     console.print("  1. Add your API key to [cyan]~/.nanobot/config.json[/cyan]")
     console.print("     Get one at: https://openrouter.ai/keys")
     console.print("  2. Chat: [cyan]nanobot agent -m \"Hello!\"[/cyan]")
-    console.print("\n[dim]Want Telegram/WhatsApp? See: https://github.com/HKUDS/nanobot#-chat-apps[/dim]")
+    console.print("\n[dim]Want Telegram/WhatsApp? See: https://github.com/x-ding-dingding/cyper_bot#-chat-apps[/dim]")
 
 
 

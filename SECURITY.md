@@ -256,8 +256,8 @@ Before deploying nanobot:
 **Last Updated**: 2026-02-03
 
 For the latest security updates and announcements, check:
-- GitHub Security Advisories: https://github.com/HKUDS/nanobot/security/advisories
-- Release Notes: https://github.com/HKUDS/nanobot/releases
+- GitHub Security Advisories: https://github.com/x-ding-dingding/cyper_bot/security/advisories
+- Release Notes: https://github.com/x-ding-dingding/cyper_bot/releases
 
 ## License
 
