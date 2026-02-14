@@ -651,7 +651,8 @@ That's it! Environment variables, model prefixing, config matching, and `nanobot
 | Option | Default | Description |
 |--------|---------|-------------|
 | `tools.restrictToWorkspace` | `false` | When `true`, restricts **all** agent tools (shell, file read/write/edit, list) to the workspace directory. Prevents path traversal and out-of-scope access. |
-| `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. Example: `["~/projects/my-app", "/opt/data"]` |
+| `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. The nanobot project directory is **automatically included**. Example: `["~/projects/my-app", "/opt/data"]` |
+| `tools.protectedFiles` | *(see below)* | Relative file paths within the nanobot project that tools are **never** allowed to write, edit, or delete (reading is still allowed). Only applies to files inside the nanobot project directory — other `allowedPaths` are unaffected. Default list protects security-critical files: `filesystem.py`, `shell.py`, `base.py`, `registry.py`, `loop.py`, `schema.py`, `loader.py`, `subagent.py`. |
 | `channels.*.allowFrom` | `[]` (allow all) | Whitelist of user IDs. Empty = allow everyone; non-empty = only listed users can interact. |
 
 

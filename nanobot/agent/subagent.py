@@ -35,6 +35,8 @@ class SubagentManager:
         brave_api_key: str | None = None,
         exec_config: "ExecToolConfig | None" = None,
         restrict_to_workspace: bool = False,
+        allowed_paths: list[Path] | None = None,
+        protected_paths: list[Path] | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         self.provider = provider
@@ -44,6 +46,8 @@ class SubagentManager:
         self.brave_api_key = brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
         self.restrict_to_workspace = restrict_to_workspace
+        self.allowed_paths = allowed_paths or []
+        self.protected_paths = protected_paths or []
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
     
     async def spawn(
@@ -98,14 +102,20 @@ class SubagentManager:
         try:
             # Build subagent tools (no message tool, no spawn tool)
             tools = ToolRegistry()
-            allowed_dir = self.workspace if self.restrict_to_workspace else None
-            tools.register(ReadFileTool(allowed_dir=allowed_dir))
-            tools.register(WriteFileTool(allowed_dir=allowed_dir))
-            tools.register(ListDirTool(allowed_dir=allowed_dir))
+            if self.restrict_to_workspace:
+                allowed_dirs = [self.workspace] + list(self.allowed_paths)
+            else:
+                allowed_dirs = None
+            protected = self.protected_paths or None
+            tools.register(ReadFileTool(allowed_dirs=allowed_dirs))
+            tools.register(WriteFileTool(allowed_dirs=allowed_dirs, protected_paths=protected))
+            tools.register(ListDirTool(allowed_dirs=allowed_dirs))
             tools.register(ExecTool(
                 working_dir=str(self.workspace),
                 timeout=self.exec_config.timeout,
                 restrict_to_workspace=self.restrict_to_workspace,
+                allowed_dirs=list(self.allowed_paths),
+                protected_paths=protected,
             ))
             tools.register(WebSearchTool(api_key=self.brave_api_key))
             tools.register(WebFetchTool())
