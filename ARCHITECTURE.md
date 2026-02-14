@@ -265,10 +265,94 @@ Channel.send() → 发送给用户
 
 ---
 
-## 八、已知限制
+## 八、自定义工具热加载
+
+> 代码位置：`nanobot/agent/loop.py` → `AgentLoop._load_custom_tools()` 方法
+
+### 8.1 概述
+
+Agent 可以在运行时通过在 `{workspace}/tools/` 目录下创建 Python 文件来扩展自己的工具集。新工具在下一条消息处理时**自动加载**，无需重启。
+
+### 8.2 加载流程
+
+```
+用户消息到达
+  ↓
+_process_message()
+  ├── _load_custom_tools()          ← 每次消息处理前执行
+  │   ├── 扫描 {workspace}/tools/*.py
+  │   ├── 跳过 _ 开头的文件
+  │   ├── 跳过已注册的工具（防重复加载）
+  │   ├── 读取源码 → 静态安全扫描
+  │   │   └── 匹配 _FORBIDDEN_TOOL_PATTERNS（正则列表）
+  │   │       命中 → 拒绝加载，记录 warning
+  │   ├── importlib 动态导入模块
+  │   ├── 查找 Tool 子类（每文件仅取第一个）
+  │   ├── 检查名称冲突（不允许覆盖内置工具）
+  │   └── 注册到 ToolRegistry
+  ↓
+正常消息处理流程...
+```
+
+### 8.3 安全机制
+
+| 层级 | 机制 | 说明 |
+|------|------|------|
+| **文件位置** | `restrictToWorkspace` | Agent 只能在 workspace 内写文件，自定义工具也只能在 workspace/tools/ 下 |
+| **静态扫描** | `_FORBIDDEN_TOOL_PATTERNS` | 加载前扫描源码，禁止 `subprocess`、`open()`、`eval()`、`exec()`、`os.system()`、`ctypes`、`socket` 等 |
+| **名称保护** | `tools.has()` 检查 | 自定义工具不能覆盖内置工具（read_file、write_file、exec 等） |
+| **沙箱传递** | `allowed_dirs` 参数 | 自定义工具构造时传入与内置工具相同的 `allowed_dirs` 限制 |
+
+### 8.4 禁止的代码模式
+
+```python
+_FORBIDDEN_TOOL_PATTERNS = [
+    r"\bsubprocess\b",           # 绕过 exec 工具的安全守卫
+    r"\bos\.system\s*\(",        # 直接执行系统命令
+    r"\bos\.popen\s*\(",         # 管道执行
+    r"\bos\.exec\w*\s*\(",       # exec 族函数
+    r"\bos\.spawn\w*\s*\(",      # spawn 族函数
+    r"\bos\.remove\s*\(",        # 直接删除文件
+    r"\bos\.unlink\s*\(",        # 直接删除文件
+    r"\bos\.rmdir\s*\(",         # 直接删除目录
+    r"\bshutil\.rmtree\s*\(",    # 递归删除目录
+    r"\b__import__\s*\(",        # 动态导入
+    r"\bimportlib\b",            # 动态导入
+    r"\bopen\s*\(",              # 直接文件 IO（应使用内置文件工具）
+    r"\beval\s*\(",              # 代码执行
+    r"\bexec\s*\(",              # 代码执行
+    r"\bcompile\s*\(",           # 代码编译
+    r"\bctypes\b",               # C 层调用
+    r"\bsocket\b",               # 网络操作
+    r"\bpathlib\.Path\s*\(",     # 直接路径操作（应使用内置文件工具）
+]
+```
+
+### 8.5 关键文件
+
+| 文件 | 路径 | 用途 |
+|------|------|------|
+| 自定义工具目录 | `{workspace}/tools/*.py` | Agent 创建的自定义工具 |
+| 工具基类 | `nanobot/agent/tools/base.py` | `Tool` 抽象基类，自定义工具必须继承 |
+| 加载逻辑 | `nanobot/agent/loop.py` | `_load_custom_tools()` 和 `_scan_for_forbidden_patterns()` |
+| Agent 文档 | `{workspace}/TOOLS.md` | 告知 Agent 如何创建自定义工具（Bootstrap 注入 system prompt） |
+
+---
+
+## 九、已知限制（含自定义工具相关）
 
 1. **无 token 感知**：不计算上下文 token 数，可能超出模型 context window
 2. **无自动摘要**：历史消息只做条数截断（50条），不做内容压缩
 3. **记忆无上限**：`MEMORY.md` 会持续增长，全量注入 system prompt
 4. **Tool calls 不持久化**：session 不保存中间的 tool_calls 和 tool results，下次对话时 Agent 不知道上次用了什么工具
 5. **每日笔记不自动清理**：`memory/` 目录下的日记文件会持续累积，但只有当天的会被加载到上下文
+
+## 十、读写限制
+
+> For production deployments, set `"restrictToWorkspace": true` in your config to sandbox the agent.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `tools.restrictToWorkspace` | `false` | When `true`, restricts **all** agent tools (shell, file read/write/edit, list) to the workspace directory. Prevents path traversal and out-of-scope access. |
+| `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. Example: `["~/projects/my-app", "/opt/data"]` |
+| `channels.*.allowFrom` | `[]` (allow all) | Whitelist of user IDs. Empty = allow everyone; non-empty = only listed users can interact. |

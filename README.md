@@ -654,6 +654,42 @@ That's it! Environment variables, model prefixing, config matching, and `nanobot
 | `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. Example: `["~/projects/my-app", "/opt/data"]` |
 | `channels.*.allowFrom` | `[]` (allow all) | Whitelist of user IDs. Empty = allow everyone; non-empty = only listed users can interact. |
 
+### Custom Tools (Self-Extending)
+
+nanobot can extend itself at runtime by loading custom tools from `{workspace}/tools/*.py`. The agent can create new tools during a conversation and they take effect **immediately** — no restart needed.
+
+**How it works:**
+1. Place a Python file in `~/.nanobot/workspace/tools/` (one `Tool` subclass per file)
+2. The file is **statically scanned** for dangerous patterns (`subprocess`, `open()`, `eval()`, etc.) before loading
+3. If the scan passes, the tool is imported and registered automatically
+4. Custom tools **cannot** override built-in tools (name collisions are rejected)
+5. When `restrictToWorkspace` is enabled, custom tools receive the same sandbox restrictions as built-in tools
+
+**Example** — `~/.nanobot/workspace/tools/timestamp.py`:
+
+```python
+from datetime import datetime
+from typing import Any
+from nanobot.agent.tools.base import Tool
+
+class TimestampTool(Tool):
+    @property
+    def name(self) -> str:
+        return "timestamp"
+
+    @property
+    def description(self) -> str:
+        return "Get the current UTC timestamp."
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {"type": "object", "properties": {}}
+
+    async def execute(self, **kwargs: Any) -> str:
+        return datetime.utcnow().isoformat() + "Z"
+```
+
+**Safety:** Custom tool source code is rejected if it contains any of these patterns: `subprocess`, `os.system()`, `os.popen()`, `open()`, `eval()`, `exec()`, `compile()`, `__import__()`, `importlib`, `ctypes`, `socket`, `pathlib.Path()`. This prevents sandbox escape while still allowing useful tool logic.
 
 ## CLI Reference
 
