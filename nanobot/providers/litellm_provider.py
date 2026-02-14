@@ -233,12 +233,34 @@ class LiteLLMProvider(LLMProvider):
         
         reasoning_content = getattr(message, "reasoning_content", None)
         
+        # Preserve the raw assistant message dict so that provider-specific
+        # fields (e.g. Gemini thought_signature on tool_calls) survive
+        # round-tripping through the agent loop.
+        raw_assistant_message = None
+        if tool_calls:
+            try:
+                raw_assistant_message = message.model_dump(exclude_none=True)
+            except Exception:
+                # Fallback: manually build from known fields
+                raw_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": message.content or "",
+                }
+                if hasattr(message, "tool_calls") and message.tool_calls:
+                    raw_msg["tool_calls"] = [
+                        tc.model_dump(exclude_none=True) for tc in message.tool_calls
+                    ]
+                if reasoning_content:
+                    raw_msg["reasoning_content"] = reasoning_content
+                raw_assistant_message = raw_msg
+        
         return LLMResponse(
             content=message.content,
             tool_calls=tool_calls,
             finish_reason=choice.finish_reason or "stop",
             usage=usage,
             reasoning_content=reasoning_content,
+            raw_assistant_message=raw_assistant_message,
         )
     
     def get_default_model(self) -> str:

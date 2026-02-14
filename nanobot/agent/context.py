@@ -238,3 +238,47 @@ When remembering something, write to {workspace_path}/memory/MEMORY.md"""
         
         messages.append(msg)
         return messages
+    
+    def add_raw_assistant_message(
+        self,
+        messages: list[dict[str, Any]],
+        raw_message: dict[str, Any] | None,
+        content: str | None = None,
+        tool_calls: list["ToolCallRequest"] | None = None,
+        reasoning_content: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Add an assistant message preserving the raw provider response.
+
+        Gemini 3+ thinking models require a ``thought_signature`` on every
+        function-call part when the conversation is sent back.  The raw
+        message dict returned by ``model_dump(exclude_none=True)`` already
+        contains these signatures, so we use it directly instead of
+        rebuilding the message from scratch.
+
+        Falls back to ``add_assistant_message`` when no raw message is
+        available (non-Gemini providers).
+        """
+        if raw_message:
+            messages.append(raw_message)
+        else:
+            # Fallback: manually build (works for non-Gemini providers)
+            import json
+            tool_call_dicts = None
+            if tool_calls:
+                tool_call_dicts = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": json.dumps(tc.arguments),
+                        },
+                    }
+                    for tc in tool_calls
+                ]
+            messages = self.add_assistant_message(
+                messages, content, tool_call_dicts,
+                reasoning_content=reasoning_content,
+            )
+        return messages

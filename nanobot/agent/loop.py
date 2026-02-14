@@ -232,20 +232,12 @@ class AgentLoop:
             
             # Handle tool calls
             if response.has_tool_calls:
-                # Add assistant message with tool calls
-                tool_call_dicts = [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": json.dumps(tc.arguments)  # Must be JSON string
-                        }
-                    }
-                    for tc in response.tool_calls
-                ]
-                messages = self.context.add_assistant_message(
-                    messages, response.content, tool_call_dicts,
+                # Use raw assistant message from provider to preserve
+                # provider-specific fields (e.g. Gemini thought_signature)
+                messages = self.context.add_raw_assistant_message(
+                    messages, response.raw_assistant_message,
+                    content=response.content,
+                    tool_calls=response.tool_calls,
                     reasoning_content=response.reasoning_content,
                 )
                 
@@ -355,19 +347,10 @@ class AgentLoop:
             )
             
             if response.has_tool_calls:
-                tool_call_dicts = [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": json.dumps(tc.arguments)
-                        }
-                    }
-                    for tc in response.tool_calls
-                ]
-                messages = self.context.add_assistant_message(
-                    messages, response.content, tool_call_dicts,
+                messages = self.context.add_raw_assistant_message(
+                    messages, response.raw_assistant_message,
+                    content=response.content,
+                    tool_calls=response.tool_calls,
                     reasoning_content=response.reasoning_content,
                 )
                 
