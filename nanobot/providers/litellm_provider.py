@@ -2,6 +2,7 @@
 
 import json
 import os
+import traceback
 from typing import Any
 
 import litellm
@@ -152,9 +153,51 @@ class LiteLLMProvider(LLMProvider):
             response = await acompletion(**kwargs)
             return self._parse_response(response)
         except Exception as e:
-            # Return error as content for graceful handling
+            from loguru import logger
+
+            # Extract detailed error info from litellm exceptions
+            error_details = [f"Exception type: {type(e).__module__}.{type(e).__qualname__}"]
+            error_details.append(f"Message: {e}")
+
+            if hasattr(e, "status_code"):
+                error_details.append(f"HTTP status: {e.status_code}")
+            if hasattr(e, "llm_provider"):
+                error_details.append(f"Provider: {e.llm_provider}")
+            if hasattr(e, "model"):
+                error_details.append(f"Model: {e.model}")
+
+            # litellm exceptions often have a .response with the raw API response body
+            response_body = None
+            if hasattr(e, "response") and e.response is not None:
+                try:
+                    if hasattr(e.response, "text"):
+                        response_body = e.response.text
+                    elif hasattr(e.response, "json"):
+                        response_body = json.dumps(e.response.json(), ensure_ascii=False)
+                    else:
+                        response_body = str(e.response)
+                except Exception:
+                    response_body = repr(e.response)
+                error_details.append(f"Response body: {response_body}")
+
+            detail_str = "\n  ".join(error_details)
+            logger.error(
+                f"LLM call failed (model={model}):\n  {detail_str}\n"
+                f"  Traceback:\n{traceback.format_exc()}"
+            )
+
+            # Build a user-facing message that includes actionable info
+            user_message = f"Error calling LLM: {type(e).__qualname__}: {e}"
+            if hasattr(e, "status_code"):
+                user_message += f" (HTTP {e.status_code})"
+            if response_body:
+                body_preview = response_body[:500]
+                if len(response_body) > 500:
+                    body_preview += "..."
+                user_message += f"\nAPI response: {body_preview}"
+
             return LLMResponse(
-                content=f"Error calling LLM: {str(e)}",
+                content=user_message,
                 finish_reason="error",
             )
     
