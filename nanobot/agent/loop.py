@@ -49,6 +49,7 @@ class AgentLoop:
         session_manager: SessionManager | None = None,
         allowed_paths: list[str] | None = None,
         protected_paths: list[str] | None = None,
+        reasoning_effort: str | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -61,6 +62,7 @@ class AgentLoop:
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
+        self.reasoning_effort = reasoning_effort
         self.allowed_paths = [Path(p).expanduser().resolve() for p in (allowed_paths or [])]
         self.protected_paths = [Path(p).resolve() for p in (protected_paths or [])]
         
@@ -227,7 +229,8 @@ class AgentLoop:
             response = await self.provider.chat(
                 messages=messages,
                 tools=self.tools.get_definitions(),
-                model=self.model
+                model=self.model,
+                reasoning_effort=self.reasoning_effort,
             )
             
             # Handle tool calls
@@ -343,7 +346,8 @@ class AgentLoop:
             response = await self.provider.chat(
                 messages=messages,
                 tools=self.tools.get_definitions(),
-                model=self.model
+                model=self.model,
+                reasoning_effort=self.reasoning_effort,
             )
             
             if response.has_tool_calls:

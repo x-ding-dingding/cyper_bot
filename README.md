@@ -115,7 +115,8 @@ For OpenRouter - recommended for global users:
   },
   "agents": {
     "defaults": {
-      "model": "anthropic/claude-opus-4-5"
+      "model": "anthropic/claude-opus-4-5",
+      "reasoning_effort": "high"
     }
   }
 }
