@@ -1,5 +1,6 @@
 .assets
 .env
+.DS_Store
 *.pyc
 dist/
 build/
@@ -21,7 +22,5 @@ tests/
 botpy.log
 
 # 
-*.jsonl
 workspace/memory/*.md
 
-workspace/stickers/*

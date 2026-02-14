@@ -47,6 +47,7 @@ class AgentLoop:
         cron_service: "CronService | None" = None,
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
+        allowed_paths: list[str] | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -59,6 +60,7 @@ class AgentLoop:
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
+        self.allowed_paths = [Path(p).expanduser().resolve() for p in (allowed_paths or [])]
         
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -78,18 +80,24 @@ class AgentLoop:
     
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
-        # File tools (restrict to workspace if configured)
-        allowed_dir = self.workspace if self.restrict_to_workspace else None
-        self.tools.register(ReadFileTool(allowed_dir=allowed_dir))
-        self.tools.register(WriteFileTool(allowed_dir=allowed_dir))
-        self.tools.register(EditFileTool(allowed_dir=allowed_dir))
-        self.tools.register(ListDirTool(allowed_dir=allowed_dir))
+        # Build allowed directories list: workspace + extra allowed_paths
+        if self.restrict_to_workspace:
+            allowed_dirs = [self.workspace] + self.allowed_paths
+        else:
+            allowed_dirs = None
+
+        # File tools
+        self.tools.register(ReadFileTool(allowed_dirs=allowed_dirs))
+        self.tools.register(WriteFileTool(allowed_dirs=allowed_dirs))
+        self.tools.register(EditFileTool(allowed_dirs=allowed_dirs))
+        self.tools.register(ListDirTool(allowed_dirs=allowed_dirs))
         
         # Shell tool
         self.tools.register(ExecTool(
             working_dir=str(self.workspace),
             timeout=self.exec_config.timeout,
             restrict_to_workspace=self.restrict_to_workspace,
+            allowed_dirs=self.allowed_paths,
         ))
         
         # Web tools

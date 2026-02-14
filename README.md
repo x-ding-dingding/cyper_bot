@@ -651,6 +651,7 @@ That's it! Environment variables, model prefixing, config matching, and `nanobot
 | Option | Default | Description |
 |--------|---------|-------------|
 | `tools.restrictToWorkspace` | `false` | When `true`, restricts **all** agent tools (shell, file read/write/edit, list) to the workspace directory. Prevents path traversal and out-of-scope access. |
+| `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. Example: `["~/projects/my-app", "/opt/data"]` |
 | `channels.*.allowFrom` | `[]` (allow all) | Whitelist of user IDs. Empty = allow everyone; non-empty = only listed users can interact. |
 
 
