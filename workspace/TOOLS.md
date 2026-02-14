@@ -40,7 +40,7 @@ exec(command: str, working_dir: str = None) -> str
 - Commands have a configurable timeout (default 60s)
 - Dangerous commands are blocked (rm -rf, format, dd, shutdown, etc.)
 - Output is truncated at 10,000 characters
-- Optional `restrictToWorkspace` config to limit paths
+- Shell write operations (>, >>, tee, cp, mv, sed -i) targeting `protectedPaths` are blocked
 
 ## Web Access
 
@@ -197,7 +197,7 @@ class MyCustomTool(Tool):
   - `open()`, `pathlib.Path()`
   - `eval()`, `exec()`, `compile()`, `__import__()`, `importlib`
   - `ctypes`, `socket`
-- **Sandbox enforced** — when `restrictToWorkspace` is enabled, custom tools receive the same `allowed_dirs` restriction as built-in file tools
+- **Protected paths enforced** — custom tools receive the same `protectedPaths` restrictions as built-in tools
 - For file I/O, use the built-in `read_file` / `write_file` / `edit_file` tools instead of direct Python file operations
 
 ### Example: Timestamp tool

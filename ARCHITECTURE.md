@@ -349,10 +349,51 @@ _FORBIDDEN_TOOL_PATTERNS = [
 
 ## 十、读写限制
 
-> For production deployments, set `"restrictToWorkspace": true` in your config to sandbox the agent.
+nanobot 提供两种互补的安全机制：
+
+### 10.1 白名单模式（`restrictToWorkspace`）
+
+> 适用于严格沙箱场景。开启后 Agent 只能在 workspace 及 `allowedPaths` 内操作。
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `tools.restrictToWorkspace` | `false` | When `true`, restricts **all** agent tools (shell, file read/write/edit, list) to the workspace directory. Prevents path traversal and out-of-scope access. |
-| `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. Example: `["~/projects/my-app", "/opt/data"]` |
+| `tools.restrictToWorkspace` | `false` | When `true`, restricts **all** agent tools (shell, file read/write/edit, list) to the workspace directory. |
+| `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. |
+
+### 10.2 黑名单模式（`protectedPaths`）— 推荐
+
+> 适用于需要 Agent 自由操作但保护敏感文件的场景。Agent 可以**读取**受保护文件，但不能**写入或编辑**。
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `tools.protectedPaths` | `[]` | Files/directories the agent is **NOT** allowed to write or edit. Supports `~` expansion. |
+
+**推荐配置示例**：
+
+```json
+{
+  "tools": {
+    "protectedPaths": [
+      "~/.nanobot/config.json",
+      "~/myproject/nanobot/config/",
+      "~/myproject/nanobot/agent/tools/filesystem.py",
+      "~/myproject/nanobot/agent/tools/shell.py",
+      "~/myproject/nanobot/agent/loop.py"
+    ]
+  }
+}
+```
+
+**保护机制覆盖范围**：
+
+| 工具 | 保护方式 |
+|------|---------|
+| `write_file` / `edit_file` | `_check_protected()` 检查路径是否匹配黑名单 |
+| `exec`（shell） | `_guard_command()` 检测写入操作（`>`、`>>`、`tee`、`cp`、`mv`、`sed -i`）是否指向受保护路径 |
+| `read_file` / `list_dir` | 不受限制，Agent 可以读取任何文件 |
+
+### 10.3 用户白名单
+
+| Option | Default | Description |
+|--------|---------|-------------|
 | `channels.*.allowFrom` | `[]` (allow all) | Whitelist of user IDs. Empty = allow everyone; non-empty = only listed users can interact. |

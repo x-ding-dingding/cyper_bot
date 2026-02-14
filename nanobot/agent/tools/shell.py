@@ -18,8 +18,7 @@ class ExecTool(Tool):
         working_dir: str | None = None,
         deny_patterns: list[str] | None = None,
         allow_patterns: list[str] | None = None,
-        restrict_to_workspace: bool = False,
-        allowed_dirs: list[Path] | None = None,
+        protected_paths: list[Path] | None = None,
     ):
         self.timeout = timeout
         self.working_dir = working_dir
@@ -34,8 +33,7 @@ class ExecTool(Tool):
             r":\(\)\s*\{.*\};\s*:",          # fork bomb
         ]
         self.allow_patterns = allow_patterns or []
-        self.restrict_to_workspace = restrict_to_workspace
-        self.allowed_dirs = allowed_dirs or []
+        self.protected_paths = protected_paths or []
     
     @property
     def name(self) -> str:
@@ -123,27 +121,17 @@ class ExecTool(Tool):
             if not any(re.search(p, lower) for p in self.allow_patterns):
                 return "Error: Command blocked by safety guard (not in allowlist)"
 
-        if self.restrict_to_workspace:
-            if "..\\" in cmd or "../" in cmd:
-                return "Error: Command blocked by safety guard (path traversal detected)"
+        # Check if command references any protected path (write operations)
+        if self.protected_paths:
+            # Detect shell write operators targeting protected files
+            # Matches: > file, >> file, tee file, cp ... dest, mv ... dest
+            write_indicators = [">", ">>", "tee ", "cp ", "mv ", "sed -i", "echo "]
+            has_write_intent = any(indicator in cmd for indicator in write_indicators)
 
-            cwd_path = Path(cwd).resolve()
-            check_dirs = [cwd_path] + [d.resolve() for d in self.allowed_dirs]
-
-            win_paths = re.findall(r"[A-Za-z]:\\[^\\\"']+", cmd)
-            # Only match absolute paths — avoid false positives on relative
-            # paths like ".venv/bin/python" where "/bin/python" would be
-            # incorrectly extracted by the old pattern.
-            posix_paths = re.findall(r"(?:^|[\s|>])(/[^\s\"'>]+)", cmd)
-
-            for raw in win_paths + posix_paths:
-                try:
-                    p = Path(raw.strip()).resolve()
-                except Exception:
-                    continue
-                if p.is_absolute():
-                    path_str = str(p)
-                    if not any(path_str.startswith(str(d)) for d in check_dirs):
-                        return "Error: Command blocked by safety guard (path outside allowed directories)"
+            if has_write_intent:
+                for protected in self.protected_paths:
+                    protected_str = str(protected)
+                    if protected_str in cmd:
+                        return f"Error: Command blocked — target path is protected: {protected_str}"
 
         return None

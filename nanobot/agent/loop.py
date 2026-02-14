@@ -50,6 +50,7 @@ class AgentLoop:
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
         allowed_paths: list[str] | None = None,
+        protected_paths: list[str] | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -63,6 +64,7 @@ class AgentLoop:
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
         self.allowed_paths = [Path(p).expanduser().resolve() for p in (allowed_paths or [])]
+        self.protected_paths = [Path(p).expanduser().resolve() for p in (protected_paths or [])]
         
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -82,29 +84,19 @@ class AgentLoop:
     
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
-        # Build allowed directories list: workspace + extra allowed_paths
-        if self.restrict_to_workspace:
-            writable_dirs = [self.workspace] + self.allowed_paths
-            # Read/list tools also need access to built-in skills directory
-            # so the agent can read SKILL.md files referenced in the skills summary
-            from nanobot.agent.skills import BUILTIN_SKILLS_DIR
-            readable_dirs = writable_dirs + [BUILTIN_SKILLS_DIR.resolve()]
-        else:
-            writable_dirs = None
-            readable_dirs = None
+        protected = self.protected_paths or None
 
-        # File tools — read/list get wider access than write/edit
-        self.tools.register(ReadFileTool(allowed_dirs=readable_dirs))
-        self.tools.register(WriteFileTool(allowed_dirs=writable_dirs))
-        self.tools.register(EditFileTool(allowed_dirs=writable_dirs))
-        self.tools.register(ListDirTool(allowed_dirs=readable_dirs))
+        # File tools — read/list have no restrictions; write/edit check protected_paths
+        self.tools.register(ReadFileTool())
+        self.tools.register(WriteFileTool(protected_paths=protected))
+        self.tools.register(EditFileTool(protected_paths=protected))
+        self.tools.register(ListDirTool())
         
         # Shell tool
         self.tools.register(ExecTool(
             working_dir=str(self.workspace),
             timeout=self.exec_config.timeout,
-            restrict_to_workspace=self.restrict_to_workspace,
-            allowed_dirs=self.allowed_paths,
+            protected_paths=protected,
         ))
         
         # Web tools
@@ -188,10 +180,7 @@ class AgentLoop:
 
         from nanobot.agent.tools.base import Tool as BaseTool
 
-        if self.restrict_to_workspace:
-            allowed_dirs = [self.workspace] + self.allowed_paths
-        else:
-            allowed_dirs = None
+        protected = self.protected_paths or None
 
         for py_file in sorted(custom_tools_dir.glob("*.py")):
             if py_file.name.startswith("_"):
@@ -229,9 +218,9 @@ class AgentLoop:
                         and issubclass(attr, BaseTool)
                         and attr is not BaseTool
                     ):
-                        # Pass allowed_dirs when the constructor accepts it
+                        # Pass protected_paths when the constructor accepts it
                         try:
-                            tool_instance = attr(allowed_dirs=allowed_dirs)
+                            tool_instance = attr(protected_paths=protected)
                         except TypeError:
                             tool_instance = attr()
 
