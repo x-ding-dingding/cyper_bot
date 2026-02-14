@@ -1,9 +1,7 @@
 """Agent loop: the core processing engine."""
 
 import asyncio
-import importlib.util
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -50,7 +48,6 @@ class AgentLoop:
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
         allowed_paths: list[str] | None = None,
-        protected_paths: list[str] | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -64,7 +61,6 @@ class AgentLoop:
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
         self.allowed_paths = [Path(p).expanduser().resolve() for p in (allowed_paths or [])]
-        self.protected_paths = [Path(p).expanduser().resolve() for p in (protected_paths or [])]
         
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -84,19 +80,24 @@ class AgentLoop:
     
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
-        protected = self.protected_paths or None
+        # Build allowed directories list: workspace + extra allowed_paths
+        if self.restrict_to_workspace:
+            allowed_dirs = [self.workspace] + self.allowed_paths
+        else:
+            allowed_dirs = None
 
-        # File tools — read/list have no restrictions; write/edit check protected_paths
-        self.tools.register(ReadFileTool())
-        self.tools.register(WriteFileTool(protected_paths=protected))
-        self.tools.register(EditFileTool(protected_paths=protected))
-        self.tools.register(ListDirTool())
+        # File tools
+        self.tools.register(ReadFileTool(allowed_dirs=allowed_dirs))
+        self.tools.register(WriteFileTool(allowed_dirs=allowed_dirs))
+        self.tools.register(EditFileTool(allowed_dirs=allowed_dirs))
+        self.tools.register(ListDirTool(allowed_dirs=allowed_dirs))
         
         # Shell tool
         self.tools.register(ExecTool(
             working_dir=str(self.workspace),
             timeout=self.exec_config.timeout,
-            protected_paths=protected,
+            restrict_to_workspace=self.restrict_to_workspace,
+            allowed_dirs=self.allowed_paths,
         ))
         
         # Web tools
@@ -122,125 +123,7 @@ class AgentLoop:
         )
         if sticker_tool._stickers:
             self.tools.register(sticker_tool)
-        
-        # Custom tools from workspace/tools/*.py (hot-loaded)
-        self._load_custom_tools()
     
-    # Patterns forbidden in custom tool source code to prevent sandbox escape
-    _FORBIDDEN_TOOL_PATTERNS: list[str] = [
-        r"\bsubprocess\b",
-        r"\bos\.system\s*\(",
-        r"\bos\.popen\s*\(",
-        r"\bos\.exec\w*\s*\(",
-        r"\bos\.spawn\w*\s*\(",
-        r"\bos\.remove\s*\(",
-        r"\bos\.unlink\s*\(",
-        r"\bos\.rmdir\s*\(",
-        r"\bshutil\.rmtree\s*\(",
-        r"\b__import__\s*\(",
-        r"\bimportlib\b",
-        r"\bopen\s*\(",
-        r"\beval\s*\(",
-        r"\bexec\s*\(",
-        r"\bcompile\s*\(",
-        r"\bctypes\b",
-        r"\bsocket\b",
-        r"\bpathlib\.Path\s*\(",
-    ]
-
-    def _scan_for_forbidden_patterns(self, source: str) -> list[str]:
-        """Scan Python source for forbidden patterns.
-
-        Returns a list of human-readable violation descriptions.  An empty
-        list means the source passed the safety check.
-        """
-        violations: list[str] = []
-        for pattern in self._FORBIDDEN_TOOL_PATTERNS:
-            match = re.search(pattern, source)
-            if match:
-                violations.append(f"forbidden pattern: {match.group()}")
-        return violations
-
-    def _load_custom_tools(self) -> None:
-        """Hot-load custom tools from ``{workspace}/tools/*.py``.
-
-        Each Python file must define exactly one class that inherits from
-        :class:`Tool`.  The file is scanned for dangerous patterns before
-        being imported — any file that contains forbidden calls (e.g.
-        ``subprocess``, ``open()``, ``eval()``) is rejected.
-
-        Custom tools **cannot** override built-in tools.  If a name
-        collision is detected the file is skipped with a warning.
-
-        Files whose names start with ``_`` are ignored.
-        """
-        custom_tools_dir = self.workspace / "tools"
-        if not custom_tools_dir.is_dir():
-            return
-
-        from nanobot.agent.tools.base import Tool as BaseTool
-
-        protected = self.protected_paths or None
-
-        for py_file in sorted(custom_tools_dir.glob("*.py")):
-            if py_file.name.startswith("_"):
-                continue
-
-            # Skip files that are already loaded (hot-reload guard)
-            module_name = f"nanobot_custom_tool_{py_file.stem}"
-
-            try:
-                source = py_file.read_text(encoding="utf-8")
-            except Exception as exc:
-                logger.error(f"Cannot read custom tool {py_file.name}: {exc}")
-                continue
-
-            # Static safety scan
-            violations = self._scan_for_forbidden_patterns(source)
-            if violations:
-                logger.warning(
-                    f"Custom tool {py_file.name} blocked — "
-                    f"safety violations: {', '.join(violations)}"
-                )
-                continue
-
-            try:
-                spec = importlib.util.spec_from_file_location(module_name, py_file)
-                if spec is None or spec.loader is None:
-                    continue
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-
-                for attr_name in dir(module):
-                    attr = getattr(module, attr_name)
-                    if (
-                        isinstance(attr, type)
-                        and issubclass(attr, BaseTool)
-                        and attr is not BaseTool
-                    ):
-                        # Pass protected_paths when the constructor accepts it
-                        try:
-                            tool_instance = attr(protected_paths=protected)
-                        except TypeError:
-                            tool_instance = attr()
-
-                        if self.tools.has(tool_instance.name):
-                            logger.warning(
-                                f"Custom tool '{tool_instance.name}' from "
-                                f"{py_file.name} conflicts with existing tool, skipped"
-                            )
-                            continue
-
-                        self.tools.register(tool_instance)
-                        logger.info(
-                            f"Loaded custom tool '{tool_instance.name}' "
-                            f"from {py_file.name}"
-                        )
-                        break  # one tool per file
-
-            except Exception as exc:
-                logger.error(f"Failed to load custom tool from {py_file.name}: {exc}")
-
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
         self._running = True
@@ -289,9 +172,6 @@ class AgentLoop:
         # The chat_id contains the original "channel:chat_id" to route back to
         if msg.channel == "system":
             return await self._process_system_message(msg)
-        
-        # Hot-reload custom tools so newly created tools take effect immediately
-        self._load_custom_tools()
         
         preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
         logger.info(f"Processing message from {msg.channel}:{msg.sender_id}: {preview}")

@@ -219,7 +219,6 @@ class ToolsConfig(BaseModel):
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
     allowed_paths: list[str] = Field(default_factory=list)  # Additional directories the agent is allowed to access (when restrict_to_workspace is true)
-    protected_paths: list[str] = Field(default_factory=list)  # Files/directories the agent is NOT allowed to write/edit (blacklist mode). Supports glob patterns and ~ expansion.
 
 
 class Config(BaseSettings):

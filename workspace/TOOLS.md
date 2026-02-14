@@ -40,7 +40,7 @@ exec(command: str, working_dir: str = None) -> str
 - Commands have a configurable timeout (default 60s)
 - Dangerous commands are blocked (rm -rf, format, dd, shutdown, etc.)
 - Output is truncated at 10,000 characters
-- Shell write operations (>, >>, tee, cp, mv, sed -i) targeting `protectedPaths` are blocked
+- Optional `restrictToWorkspace` config to limit paths
 
 ## Web Access
 
@@ -142,88 +142,9 @@ write_file(
 
 ---
 
-## Adding Custom Tools (Self-Extending)
+## Adding Custom Tools
 
-You can create your own custom tools at runtime! Place Python files in your workspace's `tools/` directory and they will be **automatically loaded** on the next message — no restart needed.
-
-### How to create a custom tool
-
-1. Create a `.py` file in `{workspace}/tools/` (e.g. `tools/my_tool.py`)
-2. Define exactly **one** class that inherits from `nanobot.agent.tools.base.Tool`
-3. Implement the required properties and method: `name`, `description`, `parameters`, `execute`
-4. The tool will be available immediately on the next message
-
-### Template
-
-```python
-from typing import Any
-from nanobot.agent.tools.base import Tool
-
-class MyCustomTool(Tool):
-    @property
-    def name(self) -> str:
-        return "my_tool"  # unique name, must not conflict with built-in tools
-
-    @property
-    def description(self) -> str:
-        return "Describe what this tool does."
-
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "param1": {
-                    "type": "string",
-                    "description": "Description of param1"
-                }
-            },
-            "required": ["param1"]
-        }
-
-    async def execute(self, param1: str, **kwargs: Any) -> str:
-        # Your tool logic here
-        return f"Result: {param1}"
-```
-
-### Rules and restrictions
-
-- **One tool per file** — only the first `Tool` subclass found is loaded
-- **Files starting with `_` are skipped** (e.g. `_helpers.py`)
-- **Cannot override built-in tools** — if the tool name conflicts with an existing tool, it is rejected
-- **Safety scan** — before loading, the source code is scanned for forbidden patterns. Files containing any of the following are **rejected**:
-  - `subprocess`, `os.system()`, `os.popen()`, `os.exec*()`, `os.spawn*()`
-  - `os.remove()`, `os.unlink()`, `os.rmdir()`, `shutil.rmtree()`
-  - `open()`, `pathlib.Path()`
-  - `eval()`, `exec()`, `compile()`, `__import__()`, `importlib`
-  - `ctypes`, `socket`
-- **Protected paths enforced** — custom tools receive the same `protectedPaths` restrictions as built-in tools
-- For file I/O, use the built-in `read_file` / `write_file` / `edit_file` tools instead of direct Python file operations
-
-### Example: Timestamp tool
-
-Create `{workspace}/tools/timestamp.py`:
-
-```python
-from datetime import datetime
-from typing import Any
-from nanobot.agent.tools.base import Tool
-
-class TimestampTool(Tool):
-    @property
-    def name(self) -> str:
-        return "timestamp"
-
-    @property
-    def description(self) -> str:
-        return "Get the current UTC timestamp."
-
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {"type": "object", "properties": {}}
-
-    async def execute(self, **kwargs: Any) -> str:
-        return datetime.utcnow().isoformat() + "Z"
-```
-
-This tool will be available on the next message you send.
+To add custom tools:
+1. Create a class that extends `Tool` in `nanobot/agent/tools/`
+2. Implement `name`, `description`, `parameters`, and `execute`
+3. Register it in `AgentLoop._register_default_tools()`

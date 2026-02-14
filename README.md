@@ -646,67 +646,14 @@ That's it! Environment variables, model prefixing, config matching, and `nanobot
 
 ### Security
 
-nanobot provides two complementary security mechanisms:
+> For production deployments, set `"restrictToWorkspace": true` in your config to sandbox the agent.
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `tools.restrictToWorkspace` | `false` | When `true`, restricts **all** agent tools (shell, file read/write/edit, list) to the workspace directory. Prevents path traversal and out-of-scope access. |
-| `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. |
-| `tools.protectedPaths` | `[]` | **Blacklist mode**: files/directories the agent is **NOT** allowed to write or edit. Supports `~` expansion. The agent can still **read** protected files. |
+| `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. Example: `["~/projects/my-app", "/opt/data"]` |
 | `channels.*.allowFrom` | `[]` (allow all) | Whitelist of user IDs. Empty = allow everyone; non-empty = only listed users can interact. |
 
-**Recommended setup** — use `protectedPaths` to guard sensitive files while leaving the agent free to operate elsewhere:
-
-```json
-{
-  "tools": {
-    "protectedPaths": [
-      "~/.nanobot/config.json",
-      "~/myproject/nanobot/config/",
-      "~/myproject/nanobot/agent/tools/filesystem.py",
-      "~/myproject/nanobot/agent/tools/shell.py",
-      "~/myproject/nanobot/agent/loop.py"
-    ]
-  }
-}
-```
-
-### Custom Tools (Self-Extending)
-
-nanobot can extend itself at runtime by loading custom tools from `{workspace}/tools/*.py`. The agent can create new tools during a conversation and they take effect **immediately** — no restart needed.
-
-**How it works:**
-1. Place a Python file in `~/.nanobot/workspace/tools/` (one `Tool` subclass per file)
-2. The file is **statically scanned** for dangerous patterns (`subprocess`, `open()`, `eval()`, etc.) before loading
-3. If the scan passes, the tool is imported and registered automatically
-4. Custom tools **cannot** override built-in tools (name collisions are rejected)
-5. Custom tools receive the same `protectedPaths` restrictions as built-in tools
-
-**Example** — `~/.nanobot/workspace/tools/timestamp.py`:
-
-```python
-from datetime import datetime
-from typing import Any
-from nanobot.agent.tools.base import Tool
-
-class TimestampTool(Tool):
-    @property
-    def name(self) -> str:
-        return "timestamp"
-
-    @property
-    def description(self) -> str:
-        return "Get the current UTC timestamp."
-
-    @property
-    def parameters(self) -> dict[str, Any]:
-        return {"type": "object", "properties": {}}
-
-    async def execute(self, **kwargs: Any) -> str:
-        return datetime.utcnow().isoformat() + "Z"
-```
-
-**Safety:** Custom tool source code is rejected if it contains any of these patterns: `subprocess`, `os.system()`, `os.popen()`, `open()`, `eval()`, `exec()`, `compile()`, `__import__()`, `importlib`, `ctypes`, `socket`. This prevents sandbox escape while still allowing useful tool logic.
 
 ## CLI Reference
 
