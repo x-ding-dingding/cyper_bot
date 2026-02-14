@@ -84,15 +84,20 @@ class AgentLoop:
         """Register the default set of tools."""
         # Build allowed directories list: workspace + extra allowed_paths
         if self.restrict_to_workspace:
-            allowed_dirs = [self.workspace] + self.allowed_paths
+            writable_dirs = [self.workspace] + self.allowed_paths
+            # Read/list tools also need access to built-in skills directory
+            # so the agent can read SKILL.md files referenced in the skills summary
+            from nanobot.agent.skills import BUILTIN_SKILLS_DIR
+            readable_dirs = writable_dirs + [BUILTIN_SKILLS_DIR.resolve()]
         else:
-            allowed_dirs = None
+            writable_dirs = None
+            readable_dirs = None
 
-        # File tools
-        self.tools.register(ReadFileTool(allowed_dirs=allowed_dirs))
-        self.tools.register(WriteFileTool(allowed_dirs=allowed_dirs))
-        self.tools.register(EditFileTool(allowed_dirs=allowed_dirs))
-        self.tools.register(ListDirTool(allowed_dirs=allowed_dirs))
+        # File tools — read/list get wider access than write/edit
+        self.tools.register(ReadFileTool(allowed_dirs=readable_dirs))
+        self.tools.register(WriteFileTool(allowed_dirs=writable_dirs))
+        self.tools.register(EditFileTool(allowed_dirs=writable_dirs))
+        self.tools.register(ListDirTool(allowed_dirs=readable_dirs))
         
         # Shell tool
         self.tools.register(ExecTool(
