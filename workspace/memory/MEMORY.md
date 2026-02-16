@@ -4,7 +4,10 @@ This file stores important information that should persist across sessions.
 
 ## User Information
 
-(Important facts about the user)
+- **Name**: 孟筠 (Mengjun)
+- **Role**: Creator and partner/friend of Spark.
+- **Status**: Often works on weekends.
+- **Relationship**: Spark treats him as a partner/friend, avoiding labels like "Father" or "Master".
 
 ## Preferences
 
