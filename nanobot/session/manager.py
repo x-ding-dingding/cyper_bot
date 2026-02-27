@@ -24,6 +24,8 @@ class Session:
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     metadata: dict[str, Any] = field(default_factory=dict)
+    summary: str = ""  # Conversation summary from previous context evictions
+    summary_in_progress: bool = False  # True while background summarization is running (not persisted)
     
     def add_message(self, role: str, content: str, **kwargs: Any) -> None:
         """Add a message to the session."""
@@ -123,11 +125,14 @@ class SessionManager:
                     else:
                         messages.append(data)
             
+            summary = metadata.pop("summary", "")
+            
             return Session(
                 key=key,
                 messages=messages,
                 created_at=created_at or datetime.now(),
-                metadata=metadata
+                metadata=metadata,
+                summary=summary,
             )
         except Exception as e:
             logger.warning(f"Failed to load session {key}: {e}")
@@ -138,12 +143,15 @@ class SessionManager:
         path = self._get_session_path(session.key)
         
         with open(path, "w") as f:
-            # Write metadata first
+            # Write metadata first (include summary for persistence)
+            persisted_metadata = dict(session.metadata)
+            if session.summary:
+                persisted_metadata["summary"] = session.summary
             metadata_line = {
                 "_type": "metadata",
                 "created_at": session.created_at.isoformat(),
                 "updated_at": session.updated_at.isoformat(),
-                "metadata": session.metadata
+                "metadata": persisted_metadata,
             }
             f.write(json.dumps(metadata_line) + "\n")
             

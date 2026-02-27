@@ -20,6 +20,7 @@ from nanobot.agent.tools.spawn import SpawnTool
 from nanobot.agent.tools.cron import CronTool
 from nanobot.agent.tools.sticker import StickerTool
 from nanobot.agent.subagent import SubagentManager
+from nanobot.agent.summarizer import Summarizer
 from nanobot.session.manager import SessionManager
 
 
@@ -50,6 +51,10 @@ class AgentLoop:
         allowed_paths: list[str] | None = None,
         protected_paths: list[str] | None = None,
         reasoning_effort: str | None = None,
+        context_window: int = 32768,
+        summarize_threshold: float = 0.6,
+        message_buffer_min: int = 10,
+        summary_model: str | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -65,6 +70,15 @@ class AgentLoop:
         self.reasoning_effort = reasoning_effort
         self.allowed_paths = [Path(p).expanduser().resolve() for p in (allowed_paths or [])]
         self.protected_paths = [Path(p).resolve() for p in (protected_paths or [])]
+        
+        # Summarization settings
+        self.context_window = context_window
+        self.summarize_threshold = summarize_threshold
+        self.message_buffer_min = message_buffer_min
+        self.summarizer = Summarizer(
+            provider=provider,
+            model=summary_model or self.model,
+        )
         
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -216,11 +230,13 @@ class AgentLoop:
             media=msg.media if msg.media else None,
             channel=msg.channel,
             chat_id=msg.chat_id,
+            summary=session.summary or None,
         )
         
         # Agent loop
         iteration = 0
         final_content = None
+        last_response = None
         
         while iteration < self.max_iterations:
             iteration += 1
@@ -232,6 +248,7 @@ class AgentLoop:
                 model=self.model,
                 reasoning_effort=self.reasoning_effort,
             )
+            last_response = response
             
             # Handle tool calls
             if response.has_tool_calls:
@@ -268,6 +285,9 @@ class AgentLoop:
         session.add_message("user", msg.content)
         session.add_message("assistant", final_content)
         self.sessions.save(session)
+        
+        # Check if summarization should be triggered based on token usage
+        self._maybe_trigger_summarization(session, last_response)
         
         return OutboundMessage(
             channel=msg.channel,
@@ -334,11 +354,13 @@ class AgentLoop:
             current_message=msg.content,
             channel=origin_channel,
             chat_id=origin_chat_id,
+            summary=session.summary or None,
         )
         
         # Agent loop (limited for announce handling)
         iteration = 0
         final_content = None
+        last_response = None
         
         while iteration < self.max_iterations:
             iteration += 1
@@ -349,6 +371,7 @@ class AgentLoop:
                 model=self.model,
                 reasoning_effort=self.reasoning_effort,
             )
+            last_response = response
             
             if response.has_tool_calls:
                 messages = self.context.add_raw_assistant_message(
@@ -377,12 +400,59 @@ class AgentLoop:
         session.add_message("assistant", final_content)
         self.sessions.save(session)
         
+        # Check if summarization should be triggered based on token usage
+        self._maybe_trigger_summarization(session, last_response)
+        
         return OutboundMessage(
             channel=origin_channel,
             chat_id=origin_chat_id,
             content=final_content
         )
     
+    def _maybe_trigger_summarization(
+        self, session: "Session", last_response: "LLMResponse | None"
+    ) -> None:
+        """Check token usage and trigger background summarization if needed.
+
+        Summarization fires when the last LLM response's prompt_tokens reaches
+        ``summarize_threshold`` of ``context_window``.  The current conversation
+        is *not* trimmed immediately — the background task will update
+        ``session.summary`` and trim messages once the summary is ready.
+        """
+        if last_response is None:
+            return
+        if session.summary_in_progress:
+            logger.debug(f"[Summarizer] Skipping trigger for {session.key}: summarization already in progress")
+            return
+
+        prompt_tokens = last_response.usage.get("prompt_tokens", 0)
+        threshold_tokens = int(self.context_window * self.summarize_threshold)
+
+        logger.debug(
+            f"[Summarizer] Token check for {session.key}: "
+            f"{prompt_tokens}/{threshold_tokens} tokens "
+            f"({prompt_tokens/threshold_tokens*100:.1f}% of threshold)"
+        )
+
+        if prompt_tokens < threshold_tokens:
+            return
+
+        logger.info(
+            f"[Summarizer] 🔥 Summarization triggered for {session.key}!\n"
+            f"  Prompt tokens: {prompt_tokens} >= threshold {threshold_tokens} "
+            f"({self.summarize_threshold:.0%} of {self.context_window})\n"
+            f"  Current messages: {len(session.messages)}\n"
+            f"  Will keep: {self.message_buffer_min} recent messages after summarization"
+        )
+        session.summary_in_progress = True
+        self.summarizer.fire_and_forget(
+            session=session,
+            session_manager=self.sessions,
+            messages_snapshot=list(session.messages),
+            previous_summary=session.summary,
+            min_keep=self.message_buffer_min,
+        )
+
     async def process_direct(
         self,
         content: str,

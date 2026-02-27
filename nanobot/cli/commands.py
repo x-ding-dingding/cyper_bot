@@ -367,6 +367,10 @@ def gateway(
         allowed_paths=config.tools.effective_allowed_paths,
         protected_paths=config.tools.resolved_protected_paths,
         reasoning_effort=config.agents.defaults.reasoning_effort,
+        context_window=config.agents.defaults.context_window,
+        summarize_threshold=config.agents.defaults.summarize_threshold,
+        message_buffer_min=config.agents.defaults.message_buffer_min,
+        summary_model=config.agents.defaults.summary_model,
     )
     
     # Set cron callback (needs agent)
@@ -472,6 +476,10 @@ def agent(
         allowed_paths=config.tools.effective_allowed_paths,
         protected_paths=config.tools.resolved_protected_paths,
         reasoning_effort=config.agents.defaults.reasoning_effort,
+        context_window=config.agents.defaults.context_window,
+        summarize_threshold=config.agents.defaults.summarize_threshold,
+        message_buffer_min=config.agents.defaults.message_buffer_min,
+        summary_model=config.agents.defaults.summary_model,
     )
     
     # Show spinner when logs are off (no output to miss); skip when logs are on

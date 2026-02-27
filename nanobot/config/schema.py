@@ -162,6 +162,10 @@ class AgentDefaults(BaseModel):
     temperature: float = 0.7
     max_tool_iterations: int = 20
     reasoning_effort: str | None = None  # Thinking depth for reasoning models (e.g. Gemini 3): "low", "medium", "high"
+    context_window: int = 32768  # Context window size in tokens
+    summarize_threshold: float = 0.6  # Trigger summarization when prompt_tokens reaches this fraction of context_window
+    message_buffer_min: int = 10  # Minimum messages to retain after summarization
+    summary_model: str | None = None  # Model for summarization (defaults to main model)
 
 
 class AgentsConfig(BaseModel):
