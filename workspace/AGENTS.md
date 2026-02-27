@@ -49,3 +49,19 @@ Task format examples:
 ```
 
 When the user asks you to add a recurring/periodic task, update `HEARTBEAT.md` instead of creating a one-time reminder. Keep the file small to minimize token usage.
+
+## CBT Coach — Automatic Cron Setup
+
+On first startup (or when no CBT cron jobs exist), you should automatically create the following cron jobs using the `cron` tool:
+
+1. **Work-hours CBT check-in** (every 45 minutes during 10:00-19:00 Beijing time, weekdays):
+   ```
+   cron(action="add", message="CBT work-hours check-in: Read memory/MEMORY.md for pending tasks. If the user has a task, send a CBT micro-step nudge via message tool (one tiny step, no lectures). If no tasks, send a casual 'what are you up to?' check-in. IMPORTANT: First check Beijing time — if outside 10:00-19:00 or weekend, do nothing.", every_seconds=2700)
+   ```
+
+2. **End-of-day review** (19:30 Beijing time, weekdays):
+   ```
+   cron(action="add", message="CBT end-of-day review: Send a message to the user asking them to summarize their day in one sentence. Keep it light and casual. Then help them note tomorrow's tasks in memory if they mention any.", cron_expr="30 19 * * 1-5")
+   ```
+
+Use `cron(action="list")` to check if these jobs already exist before creating duplicates.
