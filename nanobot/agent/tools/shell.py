@@ -19,6 +19,8 @@ class ExecTool(Tool):
         deny_patterns: list[str] | None = None,
         allow_patterns: list[str] | None = None,
         restrict_to_workspace: bool = False,
+        allowed_dirs: list[Path] | None = None,
+        protected_paths: list[Path] | None = None,
     ):
         self.timeout = timeout
         self.working_dir = working_dir
@@ -34,6 +36,8 @@ class ExecTool(Tool):
         ]
         self.allow_patterns = allow_patterns or []
         self.restrict_to_workspace = restrict_to_workspace
+        self.allowed_dirs = allowed_dirs or []
+        self.protected_paths = [p.resolve() for p in (protected_paths or [])]
     
     @property
     def name(self) -> str:
@@ -126,6 +130,7 @@ class ExecTool(Tool):
                 return "Error: Command blocked by safety guard (path traversal detected)"
 
             cwd_path = Path(cwd).resolve()
+            check_dirs = [cwd_path] + [d.resolve() for d in self.allowed_dirs]
 
             win_paths = re.findall(r"[A-Za-z]:\\[^\\\"']+", cmd)
             # Only match absolute paths — avoid false positives on relative
@@ -138,7 +143,79 @@ class ExecTool(Tool):
                     p = Path(raw.strip()).resolve()
                 except Exception:
                     continue
-                if p.is_absolute() and cwd_path not in p.parents and p != cwd_path:
-                    return "Error: Command blocked by safety guard (path outside working dir)"
+                if p.is_absolute():
+                    path_str = str(p)
+                    if not any(path_str.startswith(str(d)) for d in check_dirs):
+                        return "Error: Command blocked by safety guard (path outside allowed directories)"
+
+        # Check protected files: block write/delete/move operations targeting them
+        if self.protected_paths:
+            protected_error = self._guard_protected_files(cmd, cwd)
+            if protected_error:
+                return protected_error
+
+        return None
+
+    def _guard_protected_files(self, command: str, cwd: str) -> str | None:
+        """Block shell commands that would modify or delete protected files."""
+        protected_strs = [str(p) for p in self.protected_paths]
+
+        # Check if any protected file path appears in the command
+        for protected_path in protected_strs:
+            if protected_path not in command:
+                continue
+
+            # Patterns that indicate destructive/write operations on a file
+            write_patterns = [
+                rf"rm\s+.*{re.escape(protected_path)}",
+                rf"mv\s+.*{re.escape(protected_path)}",
+                rf"cp\s+.*\s+{re.escape(protected_path)}",
+                rf">\s*{re.escape(protected_path)}",
+                rf">>\s*{re.escape(protected_path)}",
+                rf"tee\s+.*{re.escape(protected_path)}",
+                rf"sed\s+-i.*{re.escape(protected_path)}",
+                rf"chmod\s+.*{re.escape(protected_path)}",
+                rf"chown\s+.*{re.escape(protected_path)}",
+                rf"truncate\s+.*{re.escape(protected_path)}",
+                rf"perl\s+-[pi].*{re.escape(protected_path)}",
+            ]
+            for pattern in write_patterns:
+                if re.search(pattern, command):
+                    return (
+                        f"Error: Command blocked by safety guard "
+                        f"(targets protected file: {protected_path})"
+                    )
+
+        # Also check relative paths resolved against cwd
+        cwd_path = Path(cwd).resolve()
+        for protected in self.protected_paths:
+            try:
+                relative = protected.relative_to(cwd_path)
+                rel_str = str(relative)
+            except ValueError:
+                continue
+
+            if rel_str not in command:
+                continue
+
+            write_patterns = [
+                rf"rm\s+.*{re.escape(rel_str)}",
+                rf"mv\s+.*{re.escape(rel_str)}",
+                rf"cp\s+.*\s+{re.escape(rel_str)}",
+                rf">\s*{re.escape(rel_str)}",
+                rf">>\s*{re.escape(rel_str)}",
+                rf"tee\s+.*{re.escape(rel_str)}",
+                rf"sed\s+-i.*{re.escape(rel_str)}",
+                rf"chmod\s+.*{re.escape(rel_str)}",
+                rf"chown\s+.*{re.escape(rel_str)}",
+                rf"truncate\s+.*{re.escape(rel_str)}",
+                rf"perl\s+-[pi].*{re.escape(rel_str)}",
+            ]
+            for pattern in write_patterns:
+                if re.search(pattern, command):
+                    return (
+                        f"Error: Command blocked by safety guard "
+                        f"(targets protected file: {rel_str})"
+                    )
 
         return None

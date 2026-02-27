@@ -115,7 +115,8 @@ For OpenRouter - recommended for global users:
   },
   "agents": {
     "defaults": {
-      "model": "anthropic/claude-opus-4-5"
+      "model": "anthropic/claude-opus-4-5",
+      "reasoning_effort": "high"
     }
   }
 }
@@ -644,6 +645,66 @@ That's it! Environment variables, model prefixing, config matching, and `nanobot
 </details>
 
 
+### Conversation Summarization
+
+nanobot automatically manages long conversations by generating summaries when the context approaches the token limit. This keeps conversations efficient while preserving important context.
+
+**How it works:**
+- When prompt tokens reach 60% of the context window (default: 19,660 of 32,768 tokens), nanobot triggers background summarization
+- The conversation continues normally while the summary is being generated (non-blocking)
+- Once complete, older messages are trimmed and replaced with a summary in the system prompt
+- Summaries are recursive — new summaries incorporate previous ones to maintain long-term context
+
+**Configuration:**
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "contextWindow": 32768,
+      "summarizeThreshold": 0.6,
+      "messageBufferMin": 10,
+      "summaryModel": null
+    }
+  }
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `contextWindow` | `32768` | Maximum context window size in tokens |
+| `summarizeThreshold` | `0.6` | Trigger summarization at this fraction of context window (0.6 = 60%) |
+| `messageBufferMin` | `10` | Number of recent messages to keep after summarization |
+| `summaryModel` | `null` | Optional: use a different (cheaper) model for summaries. If `null`, uses the main model |
+
+**Testing:**
+
+To test summarization with a lower threshold:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "summarizeThreshold": 0.1,
+      "messageBufferMin": 3
+    }
+  }
+}
+```
+
+Then run with logs enabled to see the summarization process:
+
+```bash
+nanobot agent --logs
+```
+
+Look for log messages like:
+```
+[Summarizer] 🔥 Summarization triggered for cli:default!
+[Summarizer] ✓ Summary completed for cli:default
+  Messages: 12 → 3 (trimmed 9)
+```
+
 ### Security
 
 > For production deployments, set `"restrictToWorkspace": true` in your config to sandbox the agent.
@@ -651,6 +712,8 @@ That's it! Environment variables, model prefixing, config matching, and `nanobot
 | Option | Default | Description |
 |--------|---------|-------------|
 | `tools.restrictToWorkspace` | `false` | When `true`, restricts **all** agent tools (shell, file read/write/edit, list) to the workspace directory. Prevents path traversal and out-of-scope access. |
+| `tools.allowedPaths` | `[]` | Additional directories the agent is allowed to access when `restrictToWorkspace` is `true`. Supports `~` expansion. The nanobot project directory is **automatically included**. Example: `["~/projects/my-app", "/opt/data"]` |
+| `tools.protectedFiles` | *(see below)* | Relative file paths within the nanobot project that tools are **never** allowed to write, edit, or delete (reading is still allowed). Only applies to files inside the nanobot project directory — other `allowedPaths` are unaffected. Default list protects security-critical files: `filesystem.py`, `shell.py`, `base.py`, `registry.py`, `loop.py`, `schema.py`, `loader.py`, `subagent.py`. |
 | `channels.*.allowFrom` | `[]` (allow all) | Whitelist of user IDs. Empty = allow everyone; non-empty = only listed users can interact. |
 
 

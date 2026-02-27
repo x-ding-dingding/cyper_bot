@@ -131,6 +131,7 @@ When remembering something, write to {workspace_path}/memory/MEMORY.md"""
         media: list[str] | None = None,
         channel: str | None = None,
         chat_id: str | None = None,
+        summary: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         Build the complete message list for an LLM call.
@@ -142,6 +143,7 @@ When remembering something, write to {workspace_path}/memory/MEMORY.md"""
             media: Optional list of local file paths for images/media.
             channel: Current channel (telegram, feishu, etc.).
             chat_id: Current chat/user ID.
+            summary: Optional conversation summary from previous context evictions.
 
         Returns:
             List of messages including system prompt.
@@ -152,6 +154,13 @@ When remembering something, write to {workspace_path}/memory/MEMORY.md"""
         system_prompt = self.build_system_prompt(skill_names)
         if channel and chat_id:
             system_prompt += f"\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"
+        if summary:
+            system_prompt += (
+                "\n\n## Conversation Summary\n\n"
+                "The following is a summary of earlier conversation that is no longer "
+                "in the message history:\n\n"
+                f"{summary}"
+            )
         messages.append({"role": "system", "content": system_prompt})
 
         # History
@@ -237,4 +246,48 @@ When remembering something, write to {workspace_path}/memory/MEMORY.md"""
             msg["reasoning_content"] = reasoning_content
         
         messages.append(msg)
+        return messages
+    
+    def add_raw_assistant_message(
+        self,
+        messages: list[dict[str, Any]],
+        raw_message: dict[str, Any] | None,
+        content: str | None = None,
+        tool_calls: list["ToolCallRequest"] | None = None,
+        reasoning_content: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Add an assistant message preserving the raw provider response.
+
+        Gemini 3+ thinking models require a ``thought_signature`` on every
+        function-call part when the conversation is sent back.  The raw
+        message dict returned by ``model_dump(exclude_none=True)`` already
+        contains these signatures, so we use it directly instead of
+        rebuilding the message from scratch.
+
+        Falls back to ``add_assistant_message`` when no raw message is
+        available (non-Gemini providers).
+        """
+        if raw_message:
+            messages.append(raw_message)
+        else:
+            # Fallback: manually build (works for non-Gemini providers)
+            import json
+            tool_call_dicts = None
+            if tool_calls:
+                tool_call_dicts = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": json.dumps(tc.arguments),
+                        },
+                    }
+                    for tc in tool_calls
+                ]
+            messages = self.add_assistant_message(
+                messages, content, tool_call_dicts,
+                reasoning_content=reasoning_content,
+            )
         return messages

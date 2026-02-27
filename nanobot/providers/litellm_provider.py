@@ -2,6 +2,7 @@
 
 import json
 import os
+import traceback
 from typing import Any
 
 import litellm
@@ -106,6 +107,7 @@ class LiteLLMProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        reasoning_effort: str | None = None,
     ) -> LLMResponse:
         """
         Send a chat completion request via LiteLLM.
@@ -116,6 +118,8 @@ class LiteLLMProvider(LLMProvider):
             model: Model identifier (e.g., 'anthropic/claude-sonnet-4-5').
             max_tokens: Maximum tokens in response.
             temperature: Sampling temperature.
+            reasoning_effort: Thinking depth for reasoning models ("low", "medium", "high").
+                LiteLLM maps this to provider-specific params (e.g. Gemini thinking_level).
         
         Returns:
             LLMResponse with content and/or tool calls.
@@ -128,6 +132,9 @@ class LiteLLMProvider(LLMProvider):
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
+        
+        if reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
         
         # Apply model-specific overrides (e.g. kimi-k2.5 temperature)
         self._apply_model_overrides(model, kwargs)
@@ -152,9 +159,51 @@ class LiteLLMProvider(LLMProvider):
             response = await acompletion(**kwargs)
             return self._parse_response(response)
         except Exception as e:
-            # Return error as content for graceful handling
+            from loguru import logger
+
+            # Extract detailed error info from litellm exceptions
+            error_details = [f"Exception type: {type(e).__module__}.{type(e).__qualname__}"]
+            error_details.append(f"Message: {e}")
+
+            if hasattr(e, "status_code"):
+                error_details.append(f"HTTP status: {e.status_code}")
+            if hasattr(e, "llm_provider"):
+                error_details.append(f"Provider: {e.llm_provider}")
+            if hasattr(e, "model"):
+                error_details.append(f"Model: {e.model}")
+
+            # litellm exceptions often have a .response with the raw API response body
+            response_body = None
+            if hasattr(e, "response") and e.response is not None:
+                try:
+                    if hasattr(e.response, "text"):
+                        response_body = e.response.text
+                    elif hasattr(e.response, "json"):
+                        response_body = json.dumps(e.response.json(), ensure_ascii=False)
+                    else:
+                        response_body = str(e.response)
+                except Exception:
+                    response_body = repr(e.response)
+                error_details.append(f"Response body: {response_body}")
+
+            detail_str = "\n  ".join(error_details)
+            logger.error(
+                f"LLM call failed (model={model}):\n  {detail_str}\n"
+                f"  Traceback:\n{traceback.format_exc()}"
+            )
+
+            # Build a user-facing message that includes actionable info
+            user_message = f"Error calling LLM: {type(e).__qualname__}: {e}"
+            if hasattr(e, "status_code"):
+                user_message += f" (HTTP {e.status_code})"
+            if response_body:
+                body_preview = response_body[:500]
+                if len(response_body) > 500:
+                    body_preview += "..."
+                user_message += f"\nAPI response: {body_preview}"
+
             return LLMResponse(
-                content=f"Error calling LLM: {str(e)}",
+                content=user_message,
                 finish_reason="error",
             )
     
@@ -190,12 +239,34 @@ class LiteLLMProvider(LLMProvider):
         
         reasoning_content = getattr(message, "reasoning_content", None)
         
+        # Preserve the raw assistant message dict so that provider-specific
+        # fields (e.g. Gemini thought_signature on tool_calls) survive
+        # round-tripping through the agent loop.
+        raw_assistant_message = None
+        if tool_calls:
+            try:
+                raw_assistant_message = message.model_dump(exclude_none=True)
+            except Exception:
+                # Fallback: manually build from known fields
+                raw_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": message.content or "",
+                }
+                if hasattr(message, "tool_calls") and message.tool_calls:
+                    raw_msg["tool_calls"] = [
+                        tc.model_dump(exclude_none=True) for tc in message.tool_calls
+                    ]
+                if reasoning_content:
+                    raw_msg["reasoning_content"] = reasoning_content
+                raw_assistant_message = raw_msg
+        
         return LLMResponse(
             content=message.content,
             tool_calls=tool_calls,
             finish_reason=choice.finish_reason or "stop",
             usage=usage,
             reasoning_content=reasoning_content,
+            raw_assistant_message=raw_assistant_message,
         )
     
     def get_default_model(self) -> str:

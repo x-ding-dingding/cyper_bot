@@ -21,6 +21,7 @@ class LLMResponse:
     finish_reason: str = "stop"
     usage: dict[str, int] = field(default_factory=dict)
     reasoning_content: str | None = None  # Kimi, DeepSeek-R1 etc.
+    raw_assistant_message: dict[str, Any] | None = None  # Preserve provider-specific fields (e.g. Gemini thought_signature)
     
     @property
     def has_tool_calls(self) -> bool:
@@ -48,6 +49,7 @@ class LLMProvider(ABC):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        reasoning_effort: str | None = None,
     ) -> LLMResponse:
         """
         Send a chat completion request.
@@ -58,6 +60,7 @@ class LLMProvider(ABC):
             model: Model identifier (provider-specific).
             max_tokens: Maximum tokens in response.
             temperature: Sampling temperature.
+            reasoning_effort: Thinking depth for reasoning models ("low", "medium", "high").
         
         Returns:
             LLMResponse with content and/or tool calls.
