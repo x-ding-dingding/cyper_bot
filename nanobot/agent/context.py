@@ -77,10 +77,18 @@ Skills with available="false" need dependencies installed first - you can try in
         This method only provides runtime context and tool instructions.
         """
         from datetime import datetime
+        from nanobot.config.loader import load_config
         now = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
         workspace_path = str(self.workspace.expanduser().resolve())
         system = platform.system()
         runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
+        config = load_config()
+        work_dir = config.tools.work_dir
+        if work_dir:
+            resolved_work_dir = str(Path(work_dir).expanduser().resolve())
+            work_dir_section = f"Your work directory is at: {resolved_work_dir}\nUse this path whenever a skill references {{WORK_DIR}}."
+        else:
+            work_dir_section = "No work directory configured. User can set it in config.json under tools.workDir."
         
         return f"""# System Context
 
@@ -104,6 +112,9 @@ Your workspace is at: {workspace_path}
 - Memory files: {workspace_path}/memory/MEMORY.md
 - Daily notes: {workspace_path}/memory/YYYY-MM-DD.md
 - Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
+
+## Work Directory
+{work_dir_section}
 
 IMPORTANT: When responding to direct questions or conversations, reply directly with your text response.
 Only use the 'message' tool when you need to send a message to a specific chat channel (like WhatsApp).

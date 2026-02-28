@@ -224,6 +224,7 @@ class ToolsConfig(BaseModel):
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
     allowed_paths: list[str] = Field(default_factory=list)  # Additional directories the agent is allowed to access (when restrict_to_workspace is true)
+    work_dir: str = ""  #  work directory path, e.g. "~/工作助手". Injected into system prompt as {WORK_DIR} for skills to reference.
     protected_files: list[str] = Field(default_factory=lambda: [
         "nanobot/agent/tools/filesystem.py",
         "nanobot/agent/tools/shell.py",
@@ -242,12 +243,17 @@ class ToolsConfig(BaseModel):
 
     @property
     def effective_allowed_paths(self) -> list[str]:
-        """Return allowed_paths with the nanobot project directory auto-included."""
+        """Return allowed_paths with the nanobot project directory and work_dir auto-included."""
         root = self.project_root
         resolved_existing = [str(Path(p).expanduser().resolve()) for p in self.allowed_paths]
+        paths = list(self.allowed_paths)
         if root not in resolved_existing:
-            return [root] + list(self.allowed_paths)
-        return list(self.allowed_paths)
+            paths = [root] + paths
+        if self.work_dir:
+            resolved_work = str(Path(self.work_dir).expanduser().resolve())
+            if resolved_work not in resolved_existing and resolved_work != root:
+                paths.append(self.work_dir)
+        return paths
 
     @property
     def resolved_protected_paths(self) -> list[str]:

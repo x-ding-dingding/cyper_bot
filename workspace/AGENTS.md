@@ -65,3 +65,28 @@ On first startup (or when no CBT cron jobs exist), you should automatically crea
    ```
 
 Use `cron(action="list")` to check if these jobs already exist before creating duplicates.
+
+##  工作目录整理
+
+### 自动整理 Cron 配置
+
+在首次启动时（或没有整理 cron 任务时），创建以下定时任务：
+
+**每日 18:00 整理（工作日）**：
+```
+cron(action="add", message="iFlow 每日整理：先用 read_file 读取 iflow-organizer Skill（workspace/skills/iflow-organizer/SKILL.md），然后按 Skill 中的阶段一流程执行。如果 inbox 为空则跳过不发消息。", cron_expr="0 18 * * 1-5")
+```
+
+用 `cron(action="list")` 检查是否已存在整理任务，避免重复创建。
+
+### 工作内容识别
+
+当用户在对话中提到以下关键词时，识别为工作相关内容，主动询问是否要整理到对应项目：
+- "这个是工作的"、"记到项目里"、"加到 todo"
+- "XX 项目的事情"、"工作上要做 XX"
+
+识别后：
+1. 先读取 iflow-organizer Skill
+2. 追加内容到对应项目的 `work_log.md`
+3. 如果是待办事项，同时更新 `TODO.md`
+4. 通过消息告知用户已记录，展示具体变更内容
