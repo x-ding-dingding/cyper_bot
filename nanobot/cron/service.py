@@ -29,45 +29,46 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _local_timestamp() -> float:
-    """Return current timestamp in Beijing timezone for cron evaluation."""
+def _beijing_now_naive() -> datetime:
+    """Return current Beijing time as a naive datetime (no tzinfo)."""
     if _BEIJING_TZ:
-        # Get aware datetime in Beijing TZ, convert to naive for croniter
-        dt_beijing = datetime.now(_BEIJING_TZ).replace(tzinfo=None)
-        # Convert back to Unix timestamp as if it were UTC
-        return dt_beijing.timestamp()
-    # Fallback: assume system is already in China timezone
-    return time.time()
+        return datetime.now(_BEIJING_TZ).replace(tzinfo=None)
+    return datetime.now()
 
+def _beijing_naive_to_utc_ts(naive_beijing_dt: datetime) -> float:
+    """Convert a naive datetime (assumed Beijing time) to a UTC Unix timestamp."""
+    if _BEIJING_TZ:
+        aware_dt = naive_beijing_dt.replace(tzinfo=_BEIJING_TZ)
+        return aware_dt.timestamp()
+    # Fallback: assume system is already in China timezone
+    return naive_beijing_dt.timestamp()
 
 def _compute_next_run(schedule: CronSchedule, now_ms: int) -> int | None:
-    """Compute next run time in ms based on Beijing timezone."""
+    """Compute next run time in ms based on Beijing timezone.
+
+    Cron expressions are evaluated in Beijing time (Asia/Shanghai).
+    The returned timestamp is a standard UTC Unix timestamp in milliseconds.
+    """
     if schedule.kind == "at":
         return schedule.at_ms if schedule.at_ms and schedule.at_ms > now_ms else None
 
     if schedule.kind == "every":
         if not schedule.every_ms or schedule.every_ms <= 0:
             return None
-        # Next interval from now
         return now_ms + schedule.every_ms
 
     if schedule.kind == "cron" and schedule.expr:
         try:
             from croniter import croniter
-            # Use Beijing-local timestamp so cron expr matches Beijing time
-            local_ts = _local_timestamp()
-            cron = croniter(schedule.expr, local_ts)
-            next_local_time = cron.get_next()
-            # The result is also in "Beijing timestamp", convert back to UTC
-            if _BEIJING_TZ:
-                # Create naive datetime from the local timestamp, attach Beijing TZ,
-                # then get UTC timestamp
-                dt_naive = datetime.fromtimestamp(next_local_time)
-                dt_beijing = dt_naive.replace(tzinfo=_BEIJING_TZ)
-                next_utc_time = dt_beijing.timestamp()
-            else:
-                next_utc_time = next_local_time
-            return int(next_utc_time * 1000)
+            # Get current Beijing time as naive datetime for croniter
+            now_beijing = _beijing_now_naive()
+            cron = croniter(schedule.expr, now_beijing)
+            # croniter.get_next(datetime) returns a naive datetime in the same
+            # timezone as the input (Beijing time)
+            next_beijing_dt = cron.get_next(datetime)
+            # Convert Beijing naive datetime → UTC timestamp
+            next_utc_ts = _beijing_naive_to_utc_ts(next_beijing_dt)
+            return int(next_utc_ts * 1000)
         except Exception:
             return None
 
