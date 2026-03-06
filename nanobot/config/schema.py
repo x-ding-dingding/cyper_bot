@@ -156,7 +156,7 @@ class ChannelsConfig(BaseModel):
 
 class AgentDefaults(BaseModel):
     """Default agent configuration."""
-    workspace: str = "~/.nanobot/workspace"
+    workspace: str = ""  # Empty string means use <project_root>/workspace
     model: str = "anthropic/claude-opus-4-5"
     max_tokens: int = 8192
     temperature: float = 0.7
@@ -272,8 +272,15 @@ class Config(BaseSettings):
     
     @property
     def workspace_path(self) -> Path:
-        """Get expanded workspace path."""
-        return Path(self.agents.defaults.workspace).expanduser()
+        """Get expanded workspace path.
+
+        When workspace is empty (default), uses <project_root>/workspace.
+        """
+        workspace_str = self.agents.defaults.workspace
+        if workspace_str:
+            return Path(workspace_str).expanduser()
+        from nanobot.utils.helpers import get_project_root
+        return get_project_root() / "workspace"
     
     def _match_provider(self, model: str | None = None) -> tuple["ProviderConfig | None", str | None]:
         """Match provider config and its registry name. Returns (config, spec_name)."""

@@ -8,12 +8,13 @@ from nanobot.config.schema import Config
 
 
 def get_config_path() -> Path:
-    """Get the default configuration file path."""
-    return Path.home() / ".nanobot" / "config.json"
+    """Get the default configuration file path (project_root/config.json)."""
+    from nanobot.utils.helpers import get_project_root
+    return get_project_root() / "config.json"
 
 
 def get_data_dir() -> Path:
-    """Get the nanobot data directory."""
+    """Get the nanobot data directory (project root)."""
     from nanobot.utils.helpers import get_data_path
     return get_data_path()
 

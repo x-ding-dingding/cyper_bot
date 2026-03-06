@@ -21,6 +21,11 @@ poetry.lock
 tests/
 botpy.log
 
-# 
+# Runtime data (contains API keys and private data)
+config.json
+sessions/
+cron/
+
+# Memory files (private)
 workspace/memory/*.md
 

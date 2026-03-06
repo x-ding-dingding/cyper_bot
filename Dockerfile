@@ -30,8 +30,7 @@ WORKDIR /app/bridge
 RUN npm install && npm run build
 WORKDIR /app
 
-# Create config directory
-RUN mkdir -p /root/.nanobot
+# Config/sessions/cron are stored under the project directory (/app)
 
 # Gateway default port
 EXPOSE 18790
