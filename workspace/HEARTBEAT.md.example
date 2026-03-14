@@ -7,10 +7,12 @@ If this file has no tasks (only headers and comments), the agent will skip the h
 
 ## Active Tasks
 
-<!-- Add your periodic tasks below this line -->
-
+<!-- Add periodic tasks here. Examples:
+- [ ] Check weather and send a morning briefing
+- [ ] Scan inbox for urgent emails and summarize
+- [ ] Review MEMORY.md and send a daily progress nudge
+-->
 
 ## Completed
 
 <!-- Move completed tasks here or delete them -->
-

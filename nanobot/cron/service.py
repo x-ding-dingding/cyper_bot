@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Coroutine
 
@@ -11,32 +12,105 @@ from loguru import logger
 
 from nanobot.cron.types import CronJob, CronJobState, CronPayload, CronSchedule, CronStore
 
+# Beijing timezone for cron expressions (UTC+8)
+try:
+    from zoneinfo import ZoneInfo
+    _BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    # Python < 3.9 fallback to pytz
+    try:
+        from pytz import timezone
+        _BEIJING_TZ = timezone("Asia/Shanghai")
+    except ImportError:
+        _BEIJING_TZ = None
+
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
+def _beijing_now_naive() -> datetime:
+    """Return current Beijing time as a naive datetime (no tzinfo)."""
+    if _BEIJING_TZ:
+        return datetime.now(_BEIJING_TZ).replace(tzinfo=None)
+    return datetime.now()
+
+def _beijing_naive_to_utc_ts(naive_beijing_dt: datetime) -> float:
+    """Convert a naive datetime (assumed Beijing time) to a UTC Unix timestamp."""
+    if _BEIJING_TZ:
+        aware_dt = naive_beijing_dt.replace(tzinfo=_BEIJING_TZ)
+        return aware_dt.timestamp()
+    # Fallback: assume system is already in China timezone
+    return naive_beijing_dt.timestamp()
+
 def _compute_next_run(schedule: CronSchedule, now_ms: int) -> int | None:
-    """Compute next run time in ms."""
+    """Compute next run time in ms based on Beijing timezone.
+
+    Cron expressions are evaluated in Beijing time (Asia/Shanghai).
+    The returned timestamp is a standard UTC Unix timestamp in milliseconds.
+    """
     if schedule.kind == "at":
         return schedule.at_ms if schedule.at_ms and schedule.at_ms > now_ms else None
-    
+
     if schedule.kind == "every":
         if not schedule.every_ms or schedule.every_ms <= 0:
             return None
-        # Next interval from now
         return now_ms + schedule.every_ms
-    
+
     if schedule.kind == "cron" and schedule.expr:
         try:
             from croniter import croniter
-            cron = croniter(schedule.expr, time.time())
-            next_time = cron.get_next()
-            return int(next_time * 1000)
+            # Get current Beijing time as naive datetime for croniter
+            now_beijing = _beijing_now_naive()
+            cron = croniter(schedule.expr, now_beijing)
+            # croniter.get_next(datetime) returns a naive datetime in the same
+            # timezone as the input (Beijing time)
+            next_beijing_dt = cron.get_next(datetime)
+            # Convert Beijing naive datetime → UTC timestamp
+            next_utc_ts = _beijing_naive_to_utc_ts(next_beijing_dt)
+            return int(next_utc_ts * 1000)
         except Exception:
             return None
-    
+
     return None
+
+
+def _is_within_active_window(schedule: CronSchedule) -> bool:
+    """Check if current Beijing time falls within the schedule's active window.
+
+    Evaluates both ``active_hours`` (time-of-day ranges) and
+    ``active_weekdays`` (ISO weekday filter).  If neither is configured the
+    job is always considered active.
+
+    Returns ``True`` when the job should run, ``False`` when it should be
+    skipped.
+    """
+    now_beijing = _beijing_now_naive()
+
+    # Check weekday filter (1=Monday … 7=Sunday, matching datetime.isoweekday())
+    if schedule.active_weekdays:
+        if now_beijing.isoweekday() not in schedule.active_weekdays:
+            return False
+
+    # Check time-of-day ranges
+    if schedule.active_hours:
+        current_minutes = now_beijing.hour * 60 + now_beijing.minute
+        for window in schedule.active_hours:
+            if len(window) != 2:
+                continue
+            try:
+                start_h, start_m = (int(x) for x in window[0].split(":"))
+                end_h, end_m = (int(x) for x in window[1].split(":"))
+            except (ValueError, IndexError):
+                continue
+            start_total = start_h * 60 + start_m
+            end_total = end_h * 60 + end_m
+            if start_total <= current_minutes < end_total:
+                return True
+        # Had active_hours configured but none matched
+        return False
+
+    return True
 
 
 class CronService:
@@ -73,6 +147,8 @@ class CronService:
                             every_ms=j["schedule"].get("everyMs"),
                             expr=j["schedule"].get("expr"),
                             tz=j["schedule"].get("tz"),
+                            active_hours=j["schedule"].get("activeHours"),
+                            active_weekdays=j["schedule"].get("activeWeekdays"),
                         ),
                         payload=CronPayload(
                             kind=j["payload"].get("kind", "agent_turn"),
@@ -120,6 +196,8 @@ class CronService:
                         "everyMs": j.schedule.every_ms,
                         "expr": j.schedule.expr,
                         "tz": j.schedule.tz,
+                        "activeHours": j.schedule.active_hours,
+                        "activeWeekdays": j.schedule.active_weekdays,
                     },
                     "payload": {
                         "kind": j.payload.kind,
@@ -208,7 +286,22 @@ class CronService:
         ]
         
         for job in due_jobs:
-            await self._execute_job(job)
+            if _is_within_active_window(job.schedule):
+                await self._execute_job(job)
+            else:
+                # Outside active window — skip execution but advance schedule
+                logger.info(f"Cron: skipping job '{job.name}' ({job.id}) — outside active hours/weekdays")
+                job.state.last_status = "skipped"
+                job.state.last_run_at_ms = _now_ms()
+                job.updated_at_ms = _now_ms()
+                if job.schedule.kind == "at":
+                    if job.delete_after_run:
+                        self._store.jobs = [j for j in self._store.jobs if j.id != job.id]
+                    else:
+                        job.enabled = False
+                        job.state.next_run_at_ms = None
+                else:
+                    job.state.next_run_at_ms = _compute_next_run(job.schedule, _now_ms())
         
         self._save_store()
         self._arm_timer()

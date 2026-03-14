@@ -34,7 +34,7 @@ nanobot/
 │
 ├── config/
 │   ├── schema.py            # 所有配置的 Pydantic 模型（Config 为根模型）
-│   └── loader.py            # 从 ~/.nanobot/config.json 加载/保存配置
+│   └── loader.py            # 从 <project_root>/config.json 加载/保存配置
 │                            # camelCase ↔ snake_case 自动转换
 │
 ├── bus/
@@ -79,7 +79,7 @@ nanobot/
 │   └── mochat.py            # Mochat 渠道实现（Socket.IO）
 │
 ├── session/
-│   └── manager.py           # SessionManager + Session：会话持久化（JSONL 格式存储在 ~/.nanobot/sessions/）
+│   └── manager.py           # SessionManager + Session：会话持久化（JSONL 格式存储在 <project_root>/sessions/）
 │
 ├── cron/
 │   ├── types.py             # CronJob / CronSchedule / CronPayload 等数据类
@@ -93,7 +93,7 @@ nanobot/
 │
 └── skills/                  # 内置技能目录（每个技能一个子目录，含 SKILL.md）
 
-workspace/                   # 运行时工作区（默认 ~/.nanobot/workspace/）
+workspace/                   # 运行时工作区（默认 <project_root>/workspace/）
 ├── AGENTS.md                # Agent 行为指令（注入 system prompt）
 ├── SOUL.md                  # 人格/身份定义（注入 system prompt）
 ├── USER.md                  # 用户画像（注入 system prompt）
@@ -226,7 +226,7 @@ system prompt 由以下部分按顺序拼接（用 `---` 分隔）：
 ### 4.6 会话管理
 
 - `Session` 存储消息列表 + 元数据 + 对话摘要
-- 持久化为 JSONL 文件（`~/.nanobot/sessions/{channel}_{chat_id}.jsonl`）
+- 持久化为 JSONL 文件（`<project_root>/sessions/{channel}_{chat_id}.jsonl`）
 - 第一行是 metadata（含 summary），后续每行一条消息
 - `get_history(max_messages=50)` 返回最近 50 条消息给 LLM
 
@@ -253,7 +253,7 @@ system prompt 由以下部分按顺序拼接（用 `---` 分隔）：
 
 ## 五、配置体系
 
-- 配置文件：`~/.nanobot/config.json`（camelCase JSON）
+- 配置文件：`<project_root>/config.json`（camelCase JSON）
 - 代码中使用 snake_case（Pydantic 模型），loader 自动转换
 - 根模型 `Config` 包含：
   - `providers: ProvidersConfig` — 各 LLM 提供商的 API key / base

@@ -97,7 +97,7 @@ class WriteFileTool(Tool):
     
     @property
     def description(self) -> str:
-        return "Write content to a file at the given path. Creates parent directories if needed."
+        return "Write content to a file at the given path. Creates parent directories if needed. Supports append mode to add content to the end of existing files."
     
     @property
     def parameters(self) -> dict[str, Any]:
@@ -111,17 +111,32 @@ class WriteFileTool(Tool):
                 "content": {
                     "type": "string",
                     "description": "The content to write"
+                },
+                "append": {
+                    "type": "boolean",
+                    "description": "If true, append content to the end of the file instead of overwriting. Defaults to false.",
+                    "default": False
                 }
             },
             "required": ["path", "content"]
         }
     
-    async def execute(self, path: str, content: str, **kwargs: Any) -> str:
+    async def execute(self, path: str, content: str, append: bool = False, **kwargs: Any) -> str:
         try:
             file_path = _resolve_path(path, self._allowed_dirs, self._protected_paths)
             file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(content, encoding="utf-8")
-            return f"Successfully wrote {len(content)} bytes to {path}"
+            
+            if append:
+                # Append mode: read existing content and append new content
+                existing_content = ""
+                if file_path.exists():
+                    existing_content = file_path.read_text(encoding="utf-8")
+                file_path.write_text(existing_content + content, encoding="utf-8")
+                return f"Successfully appended {len(content)} bytes to {path}"
+            else:
+                # Overwrite mode (default)
+                file_path.write_text(content, encoding="utf-8")
+                return f"Successfully wrote {len(content)} bytes to {path}"
         except PermissionError as e:
             return f"Error: {e}"
         except Exception as e:

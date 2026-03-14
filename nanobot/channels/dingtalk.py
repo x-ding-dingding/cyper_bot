@@ -49,16 +49,32 @@ class NanobotDingTalkHandler(CallbackHandler):
             # Parse using SDK's ChatbotMessage for robust handling
             chatbot_msg = ChatbotMessage.from_dict(message.data)
 
-            # Extract text content; fall back to raw dict if SDK object is empty
+            # Extract text content based on message type
             content = ""
-            if chatbot_msg.text:
-                content = chatbot_msg.text.content.strip()
-            if not content:
-                content = message.data.get("text", {}).get("content", "").strip()
+            msg_type = chatbot_msg.message_type or message.data.get("msgtype", "")
+
+            if msg_type == "richText":
+                # Rich text messages store content in content.richText array
+                # Each element may have "text" (string) or "type":"picture" (image)
+                rich_text_items = (
+                    message.data.get("content", {}).get("richText", [])
+                )
+                text_parts = [
+                    item["text"]
+                    for item in rich_text_items
+                    if "text" in item
+                ]
+                content = "".join(text_parts).strip()
+            else:
+                # Standard text message
+                if chatbot_msg.text:
+                    content = chatbot_msg.text.content.strip()
+                if not content:
+                    content = message.data.get("text", {}).get("content", "").strip()
 
             if not content:
                 logger.warning(
-                    f"Received empty or unsupported message type: {chatbot_msg.message_type}"
+                    f"Received empty or unsupported message type: {msg_type}"
                 )
                 return AckMessage.STATUS_OK, "OK"
 

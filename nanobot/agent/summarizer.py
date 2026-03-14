@@ -1,6 +1,7 @@
 """Background conversation summarizer for context window management."""
 
 import asyncio
+import copy
 from typing import Any
 
 from loguru import logger
@@ -82,7 +83,9 @@ class Summarizer:
                 f"{len(messages_snapshot)} messages → keeping {min_keep} recent"
             )
             
-            transcript = self._format_transcript(messages_snapshot, previous_summary)
+            # Work on a deep copy to avoid any race conditions with the live session
+            messages_working = copy.deepcopy(messages_snapshot)
+            transcript = self._format_transcript(messages_working, previous_summary)
 
             llm_messages: list[dict[str, Any]] = [
                 {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
@@ -103,10 +106,20 @@ class Summarizer:
                 logger.warning("Summarizer returned empty or error response, skipping update")
                 return
 
-            # Update session atomically (single-threaded asyncio, safe at await boundaries)
+            # Update session - use list() to create a new list object, avoiding reference issues
             messages_before = len(session.messages)
             session.summary = summary_text
-            session.messages = session.messages[-min_keep:]
+            # Create a shallow copy of message dicts that we want to keep.
+            # This ensures we're not holding references that could be mutated elsewhere.
+            kept = list(session.messages[-min_keep:])
+            # Guard: a naive tail-slice may start mid-way through a tool call
+            # turn, leaving orphaned role="tool" messages with no preceding
+            # assistant+tool_calls message.  Providers (e.g. Dashscope) reject
+            # such sequences with a 400 error.  Drop any leading tool messages
+            # until we reach a safe starting point.
+            while kept and kept[0].get("role") == "tool":
+                kept.pop(0)
+            session.messages = kept
             messages_after = len(session.messages)
             session.summary_in_progress = False
             session_manager.save(session)

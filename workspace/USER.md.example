@@ -1,0 +1,40 @@
+# User Profile
+
+Information about you — helps the assistant personalize interactions.
+Fill in what's relevant; leave the rest blank.
+
+---
+
+## Basic Information
+
+- **Name**: (your name)
+- **Timezone**: UTC+8
+- **Language**: English (or your preferred language)
+
+## Communication Preferences
+
+- **Style**: Casual / Professional / Technical *(pick one or describe)*
+- **Response length**: Brief / Detailed / Adaptive
+- **Technical level**: Beginner / Intermediate / Expert
+
+## Work Context
+
+- **Role**: (e.g., software engineer, product manager, researcher)
+- **Main projects**: (what you're currently working on)
+- **Tools & stack**: (languages, frameworks, IDEs you use daily)
+
+## Topics of Interest
+
+- 
+- 
+- 
+
+## Special Instructions
+
+(Anything specific about how you want the assistant to behave — e.g.,
+"Always suggest tests when writing code", "Don't use bullet points",
+"Remind me to take breaks every 2 hours")
+
+---
+
+*Edit this file to customize nanobot's behavior for your needs.*

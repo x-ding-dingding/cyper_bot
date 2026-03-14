@@ -16,6 +16,14 @@ class CronSchedule:
     expr: str | None = None
     # Timezone for cron expressions
     tz: str | None = None
+    # Active hours filter (Beijing time). Each entry is [start, end] in "HH:MM" format.
+    # e.g. [["10:00","12:00"],["14:00","19:00"]] means only run during 10-12 and 14-19.
+    # If None or empty, the job runs at any hour.
+    active_hours: list[list[str]] | None = None
+    # Active weekdays filter. List of ISO weekday numbers (1=Monday, 7=Sunday).
+    # e.g. [1,2,3,4,5] means weekdays only.
+    # If None or empty, the job runs on any day.
+    active_weekdays: list[int] | None = None
 
 
 @dataclass

@@ -1,0 +1,146 @@
+{
+  "providers": {
+    "openrouter": {
+      "apiKey": "",
+      "apiBase": "",
+      "extraHeaders": null
+    },
+    "anthropic": {
+      "apiKey": "",
+      "apiBase": "",
+      "extraHeaders": null
+    },
+    "openai": {
+      "apiKey": "",
+      "apiBase": "",
+      "extraHeaders": null
+    },
+    "deepseek": {
+      "apiKey": "",
+      "apiBase": "",
+      "extraHeaders": null
+    },
+    "groq": {
+      "apiKey": "",
+      "apiBase": "",
+      "extraHeaders": null
+    },
+    "gemini": {
+      "apiKey": "",
+      "apiBase": "",
+      "extraHeaders": null
+    },
+    "dashscope": {
+      "apiKey": "sk-",
+      "apiBase": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "extraHeaders": null
+    },
+    "moonshot": {
+      "apiKey": "",
+      "apiBase": "",
+      "extraHeaders": null
+    },
+    "zhipu": {
+      "apiKey": "YOUR_ZHIPU_API_KEY"
+    },
+    "minimax": {
+      "apiKey": "YOUR_MINIMAX_API_KEY"
+    },
+    "aihubmix": {
+      "apiKey": "YOUR_AIHUBMIX_API_KEY"
+    },
+    "vllm": {
+      "apiKey": "",
+      "apiBase": "http://localhost:8000/v1"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": "dashscope/qwen3.5-plus",
+      "maxTokens": 32768,
+      "temperature": 0.7,
+      "maxToolIterations": 20,
+      "contextWindow": 32768,
+      "summarizeThreshold": 0.8,
+      "messageBufferMin": 10,
+      "summaryModel": null,
+      "reasoning_effort": "high"
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": false,
+      "token": "YOUR_TELEGRAM_BOT_TOKEN",
+      "allowFrom": []
+    },
+    "discord": {
+      "enabled": false,
+      "token": "YOUR_DISCORD_BOT_TOKEN",
+      "allowFrom": []
+    },
+    "feishu": {
+      "enabled": false,
+      "appId": "YOUR_FEISHU_APP_ID",
+      "appSecret": "YOUR_FEISHU_APP_SECRET",
+      "encryptKey": "",
+      "verificationToken": "",
+      "allowFrom": []
+    },
+    "dingtalk": {
+      "enabled": false,
+      "clientId": "YOUR_DINGTALK_CLIENT_ID",
+      "clientSecret": "YOUR_DINGTALK_CLIENT_SECRET",
+      "allowFrom": []
+    },
+    "slack": {
+      "enabled": false,
+      "botToken": "xoxb-YOUR_SLACK_BOT_TOKEN",
+      "appToken": "xapp-YOUR_SLACK_APP_TOKEN",
+      "groupPolicy": "mention",
+      "allowFrom": []
+    },
+    "qq": {
+      "enabled": false,
+      "appId": "YOUR_QQ_APP_ID",
+      "secret": "YOUR_QQ_APP_SECRET",
+      "allowFrom": []
+    },
+    "email": {
+      "enabled": false,
+      "consentGranted": false,
+      "imapHost": "imap.gmail.com",
+      "imapPort": 993,
+      "imapUsername": "your-bot@gmail.com",
+      "imapPassword": "YOUR_APP_PASSWORD",
+      "smtpHost": "smtp.gmail.com",
+      "smtpPort": 587,
+      "smtpUsername": "your-bot@gmail.com",
+      "smtpPassword": "YOUR_APP_PASSWORD",
+      "fromAddress": "your-bot@gmail.com",
+      "allowFrom": []
+    },
+    "whatsapp": {
+      "enabled": false,
+      "bridgeUrl": "ws://localhost:3001",
+      "allowFrom": []
+    }
+  },
+  "tools": {
+    "web": {
+      "search": {
+        "apiKey": "YOUR_BRAVE_SEARCH_API_KEY",
+        "maxResults": 5
+      }
+    },
+    "exec": {
+      "timeout": 60
+    },
+    "restrictToWorkspace": false,
+    "allowedPaths": [],
+    "workDir": ""
+  },
+  "gateway": {
+    "host": "0.0.0.0",
+    "port": 18790
+  }
+}

@@ -77,10 +77,33 @@ Skills with available="false" need dependencies installed first - you can try in
         This method only provides runtime context and tool instructions.
         """
         from datetime import datetime
+        from nanobot.config.loader import load_config
         now = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
         workspace_path = str(self.workspace.expanduser().resolve())
         system = platform.system()
         runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
+        config = load_config()
+        work_dir = config.tools.work_dir
+        if work_dir:
+            resolved_work_dir = str(Path(work_dir).expanduser().resolve())
+            work_dir_section = f"Your work directory is at: {resolved_work_dir}\nUse this path whenever a skill references {{WORK_DIR}}."
+            # Load AgentRead.md from work directory if it exists
+            agent_read_path = Path(resolved_work_dir) / "AgentRead.md"
+            if agent_read_path.exists():
+                try:
+                    agent_read_content = agent_read_path.read_text(encoding="utf-8").strip()
+                    if agent_read_content:
+                        work_dir_section += (
+                            f"\n\n### Work Directory Overview\n"
+                            f"The following is a detailed description of the work directory structure and contents "
+                            f"(loaded from {resolved_work_dir}/AgentRead.md). "
+                            f"Use this information directly — no need to explore the directory with tools.\n\n"
+                            f"{agent_read_content}"
+                        )
+                except Exception:
+                    pass  # Silently skip if file cannot be read
+        else:
+            work_dir_section = "No work directory configured. User can set it in config.json under tools.workDir."
         
         return f"""# System Context
 
@@ -105,9 +128,12 @@ Your workspace is at: {workspace_path}
 - Daily notes: {workspace_path}/memory/YYYY-MM-DD.md
 - Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
 
-IMPORTANT: When responding to direct questions or conversations, reply directly with your text response.
-Only use the 'message' tool when you need to send a message to a specific chat channel (like WhatsApp).
-For normal conversation, just respond with text - do not call the message tool.
+## Work Directory
+{work_dir_section}
+
+IMPORTANT: For normal conversation replies, respond with text directly — do not call the 'message' tool (the framework will deliver your reply automatically). The 'message' tool is only for proactively pushing messages, e.g. from scheduled tasks or subagents.
+
+However, if any skill or background task requires file operations (write_file, read_file, edit_file, etc.), you MUST actually call those tools before generating your reply. Never claim a file operation is done without having called the corresponding tool — that is a hallucination.
 
 When remembering something, write to {workspace_path}/memory/MEMORY.md"""
     

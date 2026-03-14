@@ -3,24 +3,32 @@
 from pathlib import Path
 from datetime import datetime
 
-
 def ensure_dir(path: Path) -> Path:
     """Ensure a directory exists, creating it if necessary."""
     path.mkdir(parents=True, exist_ok=True)
     return path
 
+def get_project_root() -> Path:
+    """Get the nanobot project root directory (where pyproject.toml lives).
+
+    Path resolution: nanobot/utils/helpers.py → up 3 levels → project root.
+    """
+    return Path(__file__).parent.parent.parent.resolve()
 
 def get_data_path() -> Path:
-    """Get the nanobot data directory (~/.nanobot)."""
-    return ensure_dir(Path.home() / ".nanobot")
+    """Get the nanobot data directory (project root).
 
+    All runtime data (config, sessions, cron) is stored under the project
+    root so that everything travels with the repository.
+    """
+    return get_project_root()
 
 def get_workspace_path(workspace: str | None = None) -> Path:
     """
     Get the workspace path.
     
     Args:
-        workspace: Optional workspace path. Defaults to ~/.nanobot/workspace.
+        workspace: Optional workspace path. Defaults to <project_root>/workspace.
     
     Returns:
         Expanded and ensured workspace path.
@@ -28,13 +36,13 @@ def get_workspace_path(workspace: str | None = None) -> Path:
     if workspace:
         path = Path(workspace).expanduser()
     else:
-        path = Path.home() / ".nanobot" / "workspace"
+        path = get_project_root() / "workspace"
     return ensure_dir(path)
-
 
 def get_sessions_path() -> Path:
     """Get the sessions storage directory."""
     return ensure_dir(get_data_path() / "sessions")
+
 
 
 def get_memory_path(workspace: Path | None = None) -> Path:
@@ -89,3 +97,4 @@ def parse_session_key(key: str) -> tuple[str, str]:
     if len(parts) != 2:
         raise ValueError(f"Invalid session key: {key}")
     return parts[0], parts[1]
+

@@ -134,7 +134,13 @@ class LiteLLMProvider(LLMProvider):
         }
         
         if reasoning_effort:
-            kwargs["reasoning_effort"] = reasoning_effort
+            # DashScope (Qwen3) uses extra_body={"enable_thinking": True} to enable
+            # extended thinking, rather than the standard reasoning_effort parameter.
+            spec = find_by_model(model)
+            if spec and spec.name == "dashscope":
+                kwargs["extra_body"] = {"enable_thinking": True}
+            else:
+                kwargs["reasoning_effort"] = reasoning_effort
         
         # Apply model-specific overrides (e.g. kimi-k2.5 temperature)
         self._apply_model_overrides(model, kwargs)
@@ -156,8 +162,37 @@ class LiteLLMProvider(LLMProvider):
             kwargs["tool_choice"] = "auto"
         
         try:
+            # DEBUG: log full request kwargs and response
+            from loguru import logger
+            import copy
+            debug_kwargs = copy.deepcopy(kwargs)
+            if "api_key" in debug_kwargs:
+                debug_kwargs["api_key"] = debug_kwargs["api_key"][:8] + "..."
+            # logger.debug(
+            #     f"[LLM REQUEST] model={model}\n"
+            #     f"  kwargs (non-messages): { {k: v for k, v in debug_kwargs.items() if k != 'messages'} }\n"
+            #     f"  messages ({len(kwargs.get('messages', []))} total):\n"
+            #     + "\n".join(
+            #         f"    [{i}] role={m.get('role')} | "
+            #         f"content_len={len(str(m.get('content') or ''))} | "
+            #         f"tool_calls={len(m.get('tool_calls', []))} | "
+            #         f"content_preview={str(m.get('content') or '')}"
+            #         for i, m in enumerate(kwargs.get("messages", []))
+            #     )
+            # )
+
             response = await acompletion(**kwargs)
-            return self._parse_response(response)
+
+            result = self._parse_response(response)
+            # logger.debug(
+            #     f"[LLM RESPONSE] finish_reason={result.finish_reason} | "
+            #     f"has_tool_calls={result.has_tool_calls} | "
+            #     f"tool_calls={[tc.name for tc in result.tool_calls]} | "
+            #     f"content_preview={str(result.content or '')} | "
+            #     f"reasoning_preview={str(result.reasoning_content or '')} | "
+            #     f"usage={result.usage}"
+            # )
+            return result
         except Exception as e:
             from loguru import logger
 

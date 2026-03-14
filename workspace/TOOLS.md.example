@@ -1,0 +1,85 @@
+# Available Tools
+
+This document describes the tools available to nanobot.
+It is injected into the system prompt to help the agent understand its capabilities.
+
+---
+
+## File Operations
+
+### read_file
+Read the contents of a file.
+
+### write_file
+Write content to a file (creates parent directories if needed).
+Set `append=true` to append instead of overwrite.
+
+### edit_file
+Edit a file by replacing specific text.
+
+### list_dir
+List contents of a directory.
+
+---
+
+## Shell Execution
+
+### exec
+Execute a shell command and return output.
+
+**Notes:**
+- Commands have a configurable timeout (default 60s)
+- Dangerous commands are blocked (rm -rf, format, dd, shutdown, etc.)
+- Use `restrictToWorkspace` config to sandbox file access
+
+---
+
+## Web Access
+
+### web_search
+Search the web using Brave Search API.
+Requires `tools.web.search.apiKey` in config.
+
+### web_fetch
+Fetch and extract main content from a URL.
+Supports markdown or plain text extraction.
+
+---
+
+## Communication
+
+### message
+Send a message to the user (used by background tasks and cron jobs).
+
+---
+
+## Background Tasks
+
+### spawn
+Spawn a subagent to handle a task in the background.
+Use for complex or time-consuming tasks that can run independently.
+
+---
+
+## Scheduled Tasks (Cron)
+
+### cron
+Create, list, or remove scheduled tasks.
+
+```
+cron(action="add", message="Good morning!", cron_expr="0 9 * * *")
+cron(action="add", message="Take a break", every_seconds=3600)
+cron(action="list")
+cron(action="remove", job_id="abc123")
+```
+
+---
+
+## Heartbeat Task Management
+
+Edit `HEARTBEAT.md` to add or remove periodic background tasks.
+The file is checked every 30 minutes — tasks with `- [ ]` are executed.
+
+---
+
+*For developer docs on adding custom tools, see ARCHITECTURE.md.*

@@ -1,0 +1,28 @@
+# Long-term Memory
+
+This file stores important information that should persist across sessions.
+The assistant reads this file at startup and updates it when new information should be remembered.
+
+---
+
+## User Information
+
+- **Name**: (your name)
+- **Role**: (your role or relationship with the assistant)
+- **Status**: (e.g., "Often works on weekends", "Based in UTC+8")
+
+## Preferences
+
+*(Preferences learned over time — the assistant will fill these in automatically)*
+
+## Project Context
+
+- **Work Directory**: (set via `tools.workDir` in config.json — injected automatically as `{WORK_DIR}`)
+
+## Important Notes
+
+*(Things to remember across sessions — the assistant will update this automatically)*
+
+---
+
+*This file is automatically updated by nanobot when important information should be remembered.*
